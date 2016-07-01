@@ -1,0 +1,17 @@
+#!/bin/csh -f
+#
+#
+if ( $# < 3 ) then
+ echo "Usage: $0 <DM> <Band> <Freq>"
+ echo "  DM   - in pc/cm^3"
+ echo "  Band - in MHz"
+ echo "  Freq - in MHz"
+ echo "The program gives a value of dispersion delay in ms"
+ exit 0
+else
+ echo "scale=30" > .dide
+ echo "(20000000*$1*$2)/(2.41*$3*$3*$3)" >> .dide
+ echo "Delay = `bc -l < .dide` ms"
+ rm .dide
+endif
+

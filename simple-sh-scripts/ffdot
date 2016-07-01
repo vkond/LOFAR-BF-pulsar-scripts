@@ -1,0 +1,96 @@
+#!/usr/bin/perl
+#
+#
+if ($#ARGV == -1) {
+ print "Usage: $0 <f in Hz> <fdot in 10^-15 sec^-2>\n";
+ print "The program gives a value of:\n";
+ print " characteristic age, tau, in Myr\n";
+ print " spin-down luminosity, Edot, in erg/s\n";
+ print " surface magnetic field, Bs, in G\n";
+ print " light-cylinder magnetic field, Blc, in G\n";
+ print " Goldreich-Julian density, nGJ, in cm^-3\n";
+ print " polar cap radius, Rp, in meters\n";
+ print " light-cylinder radius, Rlc, in km\n";
+ print " potential drop between the magnetic pole and the polar cap, dF, in V\n";
+ print " pulsar period, P, in sec\n";
+ print " derivative of pulsar period, Pdot, in 10^-15 s/s\n";
+ exit 0
+}
+if ($#ARGV < 1) {
+ print "you have set fdot!\n";
+ exit 1;
+}
+$fdot = $ARGV[1];
+$f = $ARGV[0];
+
+# P
+ system ("echo \"scale=30\" > .ppdot");
+ system ("echo \"1./$f\" >> .ppdot");
+ $p = `bc -l < .ppdot`;
+ chomp $p;
+# Pdot
+ system ("echo \"scale=30\" > .ppdot");
+ system ("echo \"(-1.*$fdot/($f*$f))\" >> .ppdot");
+ $pdot = `bc -l < .ppdot`;
+ chomp $pdot;
+
+# age
+ system ("echo \"scale=30\" > .ppdot");
+ system ("echo \"15.8*($p)/($pdot)\" >> .ppdot");
+ $tau = `bc -l < .ppdot`;
+ chomp $tau;
+ printf ("tau = %.3f Myr\n", $tau);
+# Edot
+ system ("echo \"scale=30\" > .ppdot");
+ system ("echo \"(3.95*10^31)*($pdot)/($p)/($p)/($p)\" >> .ppdot");
+ $Edot = `bc -l < .ppdot`;
+ chomp $Edot;
+ printf ("Edot = %.3g erg/s\n", $Edot);
+# Bs
+ system ("echo \"scale=30\" > .ppdot");
+ system ("echo \"(10^12)*(sqrt($p*$pdot))\" >> .ppdot");
+ $Bs = `bc -l < .ppdot`;
+ chomp $Bs;
+ printf ("Bs = %.3g G\n", $Bs);
+# Blc
+ system ("echo \"scale=30\" > .ppdot");
+ system ("echo \"(9.2)*(sqrt($pdot))/((sqrt($p))*($p*$p))\" >> .ppdot");
+ $Blc = `bc -l < .ppdot`;
+ chomp $Blc;
+ printf ("Blc = %.3g G\n", $Blc);
+
+ print ("\n");
+# nGJ
+ system ("echo \"scale=30\" > .ppdot");
+ system ("echo \"(7*10^10)*(sqrt($pdot/$p))\" >> .ppdot");
+ $nGJ = `bc -l < .ppdot`;
+ chomp $nGJ;
+ printf ("nGJ = %.3g cm^-3\n", $nGJ);
+# Rp
+ system ("echo \"scale=30\" > .ppdot");
+ system ("echo \"(150)*(1./sqrt($p))\" >> .ppdot");
+ $Rp = `bc -l < .ppdot`;
+ chomp $Rp;
+ printf ("Rp = %.3f m\n", $Rp);
+# Rlc
+ system ("echo \"scale=30\" > .ppdot");
+ system ("echo \"(4.77*10^4)*$p\" >> .ppdot");
+ $Rlc = `bc -l < .ppdot`;
+ chomp $Rlc;
+ printf ("Rlc = %.3f km\n", $Rlc);
+# dF
+ system ("echo \"scale=30\" > .ppdot");
+ system ("echo \"(2*10^13)*(sqrt($pdot/$p))/$p\" >> .ppdot");
+ $dF = `bc -l < .ppdot`;
+ chomp $dF;
+ printf ("dF = %.3g V\n", $dF);
+
+ print ("\n");
+# p
+ printf ("P = %.15f sec\n", $p);
+# pdot
+ printf ("Pdot = %.15g 10^-15 s/s\n", $pdot);
+ 
+
+
+system ("rm -f .ppdot");

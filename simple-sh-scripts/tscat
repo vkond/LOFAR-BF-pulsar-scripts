@@ -1,0 +1,33 @@
+#!/usr/bin/perl
+#
+# This script calculates the scattering time using
+# the empirical relationship between scattering time, DM and
+# observing frequency (Bhat et al., 2004)
+#
+if ($#ARGV < 1) {
+ print "Usage: $0 <DM> <Freq>\n";
+ print "  DM   - in pc/cm^3\n";
+ print "  Freq - in GHz\n";
+ print "The program gives a value of scattering time (in mcs) and decorrelation bandwidth (in MHz)\n";
+ print "It is based on the empirical relationship from Bhat et al. (2004)\n";
+ exit 0;
+}
+$dm = $ARGV[0];
+$freq = $ARGV[1];
+$logtau = -6.46 + 0.154*&log10($dm) + 1.07*&log10($dm)*&log10($dm) - 3.86*&log10($freq);
+$scat = &power (10., $logtau);
+printf ("Scattering time = %f mcs\n", 1000.*$scat);
+printf ("Decorrelation bandwidth = %f MHz\n", 1./(2.*3.1415926*1000.*$scat));
+
+
+# Subroutine to calculate 10-base logarithm
+sub log10 {
+ my ($val) = @_;
+ return log($val)/log(10.);
+}
+
+# Subroutine to calculate x^y
+sub power {
+ my ($x, $y) = @_;
+ return exp($y * log($x));
+}
