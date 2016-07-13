@@ -1,5 +1,16 @@
 #!/usr/bin/env python
 #
+# Determine the S/N of the profile using diffent methods
+# and print out noise/signal statistics for comparison
+# Can be used with both Presto .bestprof files and PSRCHIVE
+# archive files.
+#
+# Vlad Kondratiev (c) - 26.11.2014 
+#
+# 13.07.2016 - Vlad Kondratiev
+#	       added --auto-off option to automatically 
+#              determine the OFF-pulse window 
+#
 import numpy as np
 import os, os.path, stat, glob, sys, getopt, re
 import scipy.stats as sc
@@ -75,6 +86,41 @@ def trim_bins(x):
 	x_diffs=[x[ii]-x[ii-1] for ii in xrange(1, len(x))]
 	return x
 
+# automatic search for the off-pulse window
+# input profile will be rotated as necessary
+# return tuple (data, rotphase, off-left, off-right)
+def auto_find_off_window(data, rot_bins, nbins):
+	# find first the bin with maximum value
+	maxbin = np.argmax(data)
+	# exclude the area of 60% of all bins around the maxbin
+	# make the 60%-area the even number
+	exclsize=int(nbins*0.6)+int(nbins*0.6)%2
+	le=maxbin-exclsize/2
+	re=maxbin+exclsize/2
+	# extra rotation by "le" bins, so left edge will be at 0
+	data = bestprof_rotate(data, le)
+	# total rotation in phase
+	if abs(rot_bins) < 1:
+		rot_bins += float(le)/nbins
+	else:
+		rot_bins = float(rot_bins + le)/nbins
+	amean = np.mean(data[re-le:nbins])
+	arms = np.std(data[re-le:nbins])
+	aprof = (data - amean)/arms
+       	abins=np.arange(0,nbins)[(aprof>2.)]
+	abins=trim_bins(abins) # trimming bins
+	# updating pulse window
+	exclsize=abins[-1]-abins[0]
+	# to be extra-cautious, increase it by 10% of the pulse window on both sides
+	le=abins[0]-int(0.1*exclsize)
+	re=abins[-1]+1+int(0.1*exclsize)
+	# extra rotation by "le" bins again, so left edge will be at 0
+	data = bestprof_rotate(data, le)
+	# total rotation in phase
+	rot_bins += float(le)/nbins
+	return (data, rot_bins, re-le, nbins)
+
+
 # Main
 if __name__=="__main__":
         #
@@ -100,6 +146,7 @@ If absolute value is < 1, then the value is treated as pulse phase in turns. Neg
 mean/rms in the 'Off' mode (inclusive). Default: %default", default=0, type='int')
         cmdline.add_option('--off-right', dest='off_right', metavar='BIN#', help="Right edge of the off-pulse window to calculate \
 mean/rms in the 'Off' mode (exclusive). Default: 10%-bin of the profile", default=-1, type='int')
+	cmdline.add_option('--auto-off', dest='is_auto_off', action="store_true", help="Automatic determination of OFF region", default=False)
         cmdline.add_option('--osm-min', dest='osm_min', metavar='MIN PROB', help="Minimum probability value to be used \
 to calculate the mean and rms, default: min possible", type='float')
         cmdline.add_option('--osm-max', dest='osm_max', metavar='MAX PROB', help="Maximum probability value to be used \
@@ -139,8 +186,13 @@ information. The argument is the pulsar name or any other label. If argument is 
 			if opts.bscr > 1:
 				data = bestprof_bscrunch(data, opts.bscr)
 			nbins = len(data)
-			if opts.rot_bins != 0:
-				data = bestprof_rotate(data, opts.rot_bins)
+
+			# auto-find of the OFF-pulse window
+			if opts.is_auto_off:
+				(data, opts.rot_bins, opts.off_left, opts.off_right) = auto_find_off_window(data, opts.rot_bins, nbins)
+			else:
+				if opts.rot_bins != 0:
+					data = bestprof_rotate(data, opts.rot_bins)
 
 		else: # Psrchive's file
 			raw = pc.Archive_load(infile)
@@ -155,17 +207,25 @@ information. The argument is the pulsar name or any other label. If argument is 
 		        if nsubint > 1: raw.tscrunch()
 		        if opts.bscr > 1: raw.bscrunch(opts.bscr)
 		        nbins = raw.get_nbin()
-			if opts.rot_bins != 0:
-				if abs(opts.rot_bins) < 1:
-					raw.rotate_phase(opts.rot_bins)
-				else:
-					raw.rotate_phase(opts.rot_bins/nbins)
 
 	        	r = raw.get_data()
 	        	#time stokes f phase
         		data = r[0,0,0,:]
 		        weights = raw.get_weights()
 			data[(weights[0]==0)] = 0.0
+
+			# auto-find of the OFF-pulse window
+			if opts.is_auto_off:
+				(data, opts.rot_bins, opts.off_left, opts.off_right) = auto_find_off_window(data, opts.rot_bins, nbins)
+				# and do total rotation for the input file as well (for psrstat)
+				raw.rotate_phase(opts.rot_bins)
+			else:
+				if opts.rot_bins != 0:
+					if abs(opts.rot_bins) < 1:
+						raw.rotate_phase(opts.rot_bins)
+					else:
+						raw.rotate_phase(opts.rot_bins/nbins)
+					data = bestprof_rotate(data, opts.rot_bins)
 
 			# Psrstat
 			cmd="psrstat -Q -c all:sum %s" % (infile) + " | awk '{printf \"%.20f\", $2}'"
@@ -226,6 +286,39 @@ information. The argument is the pulsar name or any other label. If argument is 
 			
 
 		# Range
+		if opts.is_auto_off:
+			# find first the bin with maximum value
+			maxbin = np.argmax(data)
+			# exclude the area of 60% of all bins around the maxbin
+			# make the 60%-area the even number
+			exclsize=int(nbins*0.6)+int(nbins*0.6)%2
+			le=maxbin-exclsize/2
+			re=maxbin+exclsize/2
+			# extra rotation by "le" bins, so left edge will be at 0
+			data = bestprof_rotate(data, le)
+			# total rotation in phase
+			if abs(opts.rot_bins) < 1:
+				opts.rot_bins += float(le)/nbins
+			else:
+				opts.rot_bins = float(opts.rot_bins + le)/nbins
+			amean = np.mean(data[re-le:nbins])
+			arms = np.std(data[re-le:nbins])
+			aprof = (data - amean)/arms
+	        	acrit=(aprof>2.)
+	        	abins=np.arange(0,nbins)[acrit]
+			abins=trim_bins(abins) # trimming bins
+			# updating pulse window
+			exclsize=abins[-1]-abins[0]
+			# to be extra-cautious, increase it by 10% of the pulse window on both sides
+			le=abins[0]-int(0.1*exclsize)
+			re=abins[-1]+1+int(0.1*exclsize)
+			# extra rotation by "le" bins again, so left edge will be at 0
+			data = bestprof_rotate(data, le)
+			# total rotation in phase
+			opts.rot_bins += float(le)/nbins
+			opts.off_left = re-le
+			opts.off_right = nbins
+
 		range_mean = np.mean(data[opts.off_left:opts.off_right])
 		range_rms = np.std(data[opts.off_left:opts.off_right])
 		range_prof = (data - range_mean)/range_rms
@@ -297,6 +390,8 @@ information. The argument is the pulsar name or any other label. If argument is 
 				print "Chi^2/dof:\t\t| %-13.2f | %-13.2f | %-13.2f | %.2f (-c snr)" % (qq_chi2, range_chi2, polynom_chi2, snr)
 				print "#bins with S/N>%.2f:\t| %-13d | %-13d | %-13d | %-13d" % (opts.thres, qq_oncount, range_oncount, polynom_oncount, oncount)
 				print "-----------------------------------------------------------------------------------------"
+				if opts.is_auto_off:
+					print "AUTO-OFF: --off-left %d --off-right %d -r %f -b %d" % (opts.off_left, opts.off_right, opts.rot_bins, opts.bscr)	
 			else:
 				if opts.oneliner == "meta": psr = target
 				else: psr = opts.oneliner
@@ -328,6 +423,8 @@ information. The argument is the pulsar name or any other label. If argument is 
 				print "Chi^2/dof:\t\t| %-13.2f | %-13.2f | %-13.2f" % (qq_chi2, range_chi2, polynom_chi2)
 				print "#bins with S/N>%.2f:\t| %-13d | %-13d | %-13d" % (opts.thres, qq_oncount, range_oncount, polynom_oncount)
 				print "-----------------------------------------------------------------------"
+				if opts.is_auto_off:
+					print "AUTO-OFF: --off-left %d --off-right %d -r %f -b %d" % (opts.off_left, opts.off_right, opts.rot_bins, opts.bscr)	
 			else:
 				if opts.oneliner == "meta": psr = target
 				else: psr = opts.oneliner
