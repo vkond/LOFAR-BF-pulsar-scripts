@@ -107,7 +107,7 @@ def auto_find_off_window(data, rot_bins, nbins):
 	amean = np.mean(data[re-le:nbins])
 	arms = np.std(data[re-le:nbins])
 	aprof = (data - amean)/arms
-       	abins=np.arange(0,nbins)[(aprof>2.)]
+       	abins=np.arange(0,nbins)[(aprof>2.5)]
 	abins=trim_bins(abins) # trimming bins
 	# updating pulse window
 	exclsize=abins[-1]-abins[0]
@@ -286,39 +286,6 @@ information. The argument is the pulsar name or any other label. If argument is 
 			
 
 		# Range
-		if opts.is_auto_off:
-			# find first the bin with maximum value
-			maxbin = np.argmax(data)
-			# exclude the area of 60% of all bins around the maxbin
-			# make the 60%-area the even number
-			exclsize=int(nbins*0.6)+int(nbins*0.6)%2
-			le=maxbin-exclsize/2
-			re=maxbin+exclsize/2
-			# extra rotation by "le" bins, so left edge will be at 0
-			data = bestprof_rotate(data, le)
-			# total rotation in phase
-			if abs(opts.rot_bins) < 1:
-				opts.rot_bins += float(le)/nbins
-			else:
-				opts.rot_bins = float(opts.rot_bins + le)/nbins
-			amean = np.mean(data[re-le:nbins])
-			arms = np.std(data[re-le:nbins])
-			aprof = (data - amean)/arms
-	        	acrit=(aprof>2.)
-	        	abins=np.arange(0,nbins)[acrit]
-			abins=trim_bins(abins) # trimming bins
-			# updating pulse window
-			exclsize=abins[-1]-abins[0]
-			# to be extra-cautious, increase it by 10% of the pulse window on both sides
-			le=abins[0]-int(0.1*exclsize)
-			re=abins[-1]+1+int(0.1*exclsize)
-			# extra rotation by "le" bins again, so left edge will be at 0
-			data = bestprof_rotate(data, le)
-			# total rotation in phase
-			opts.rot_bins += float(le)/nbins
-			opts.off_left = re-le
-			opts.off_right = nbins
-
 		range_mean = np.mean(data[opts.off_left:opts.off_right])
 		range_rms = np.std(data[opts.off_left:opts.off_right])
 		range_prof = (data - range_mean)/range_rms
