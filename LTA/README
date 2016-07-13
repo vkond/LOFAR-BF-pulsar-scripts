@@ -1,0 +1,28 @@
+REQUIREMENTS
+------------
+
+To use lta-query.py, you also need to install LOFAR LTA client:
+http://www.astro-wise.org/losoft/lofar_lta-2.6.0.tar.gz
+
+Instructions on the lofar.org page:
+http://www.lofar.org/wiki/doku.php?id=lta:client_installation
+
+cd lofar_lta-1.0
+put directory <YOUR PREFIX>/lib64/python2.7/site-packages/ to the PYTHONPATH
+python setup.py install_oracle --prefix=<YOUR PREFIX>
+python setup.py install --prefix=<YOUR PREFIX>
+
+After the installation have a look at ${HOME}/.awe/Environment.cfg
+  - you should at least define your database username and password.
+
+Then you can use it like:
+lta-query.py -p LT3_001
+giving the project number. It will create corresponding *.csv file listing all data files
+for this project.
+
+Then you can use this file as input for lta-retrieve.py, e.g.:
+
+lta-retrieve.py [-u] [--summary-only] --csvfile <file> <ObsID 1> <ObsID 2> ... <ObsID N>
+
+or you can skip lta-query.py and rather use --query and -p options directly for lta-retrieve.py,
+but then every call of the script will be slow as the same query will be done every time.
