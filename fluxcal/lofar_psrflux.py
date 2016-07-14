@@ -62,11 +62,10 @@
 	24.04.2015 - Vlad Kondratiev
 		     re-arranged hamaker_carozzi functions in a separate file,
 		     so changed the module import calls
-	19.04.2016 - Vlad Kondratiev
+        19.04.2016 - Vlad Kondratiev
                      added calculating "real" SEFD without taking into account
                      npol, integration time and bandwidth. In the output, this
-                     is now called "SEFD", and previous "SEFD" is renamed to
-                     "Sensit."
+                     is now called "SEFD", and previous "SEFD" is renamed to "Sensit."
 """
 
 import numpy as np
@@ -110,9 +109,9 @@ def read_meta(h5file):
 # "obsid" is assumed to have leading "L"
 def badDipoles(obsid, band):
 	if band == "HBA":
-		f = open('/home/hassall/flaggedAntennasHBA','r')
+		f = open('/home/astron/kondratiev/pulsar/etc/flagged-antennas-tom-hassall/flaggedAntennasHBA','r')
 	elif band == "LBA":
-		f = open('/home/hassall/flaggedAntennasLBA','r')
+		f = open('/home/astron/kondratiev/pulsar/etc/flagged-antennas-tom-hassall/flaggedAntennasLBA','r')
 	else:
 		print "Band not recognised, assuming all antennas are active"
 		return 0.0
@@ -669,8 +668,8 @@ to png-file instead of GUI", default=False)
 			ax1 = fig.add_subplot(211)
 		else:
 			ax1 = fig.add_subplot(111)
-		plt.xlabel("Bin")
-		plt.ylabel("Flux density (mJy)")
+		plt.xlabel("Bin", fontsize=12)
+		plt.ylabel("Flux density (mJy)", fontsize=12)
 
 		ax1.plot(range(len(totprof)), totprof, "g-", alpha=0.7)
 		ax1.axvline(x=binpeak, linestyle="--", color="black")
@@ -701,25 +700,26 @@ to png-file instead of GUI", default=False)
 		# plotting the spectrum
 		if opts.spchan != -1:
 			ax2 = fig.add_subplot(212)
-			plt.xlabel("Frequency (MHz)")
-			plt.ylabel("Flux density (mJy)")
+			plt.xlabel("Frequency (MHz)", fontsize=12)
+			plt.ylabel("Flux density (mJy)", fontsize=12)
 			ax2.set_xscale('log')
 			ax2.set_yscale('log')
 			ax2.set_xlim(xmin=100*int((cfreq+bw/2.)/100.), xmax=100*(1+int((cfreq+bw/2.)/100.)))
 			ax2.set_ylim(ymin=10**(-0.5+np.log10(np.min(spectrum[0]))), ymax=10**(0.5+np.log10(np.max(spectrum[0]))))
 			ax2.xaxis.set_major_locator(MaxNLocator(10))
-			ax2.xaxis.set_minor_locator(MaxNLocator(10))
+			ax2.xaxis.set_minor_locator(MaxNLocator(20))
 			ax2.xaxis.set_major_formatter(FormatStrFormatter("%g"))
-			ax2.xaxis.set_minor_formatter(FormatStrFormatter("%g"))
-			ax2.errorbar(spectrum[2], spectrum[0], yerr=spectrum[1], color='darkgreen', fmt="o", alpha=0.7)
+			ax2.xaxis.set_minor_formatter(FormatStrFormatter(""))
 			# fit straight line in log-log plot
 			lf=[np.log10(ff) for ff in spectrum[2]]
 			coeffs = np.polyfit(lf, [np.log10(ff) for ff in spectrum[0]], 1)
 	                spfit = np.polyval(coeffs, lf)
-			ax2.plot(spectrum[2], [pow(10., ff) for ff in spfit], "--", color="blue", label=r"$\alpha=%g$" % (coeffs[0]))
+			ax2.plot(spectrum[2], [pow(10., ff) for ff in spfit], "--", color="blue", label=r"$\alpha=%g$" % (coeffs[0]), alpha=0.8)
+			ax2.errorbar(spectrum[2], spectrum[0], yerr=spectrum[1], color='darkgreen', fmt="o", alpha=0.9)
 			plt.legend()
 			plt.grid()
 
+		plt.tight_layout()
 		if opts.is_saveonly:
 			plt.savefig(pngname)
 		else:
