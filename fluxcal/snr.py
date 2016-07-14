@@ -10,6 +10,11 @@
 # 13.07.2016 - Vlad Kondratiev
 #	       added --auto-off option to automatically 
 #              determine the OFF-pulse window 
+# 14.07.2016 - Vlad Kondratiev
+#              added --auto-off-adjust option to adjust
+#              ON-pulse window (and correspondingly OFF-pulse
+#              window as well) if automatic usage 
+#              of --auto-off is not enough
 #
 import numpy as np
 import os, os.path, stat, glob, sys, getopt, re
@@ -89,7 +94,7 @@ def trim_bins(x):
 # automatic search for the off-pulse window
 # input profile will be rotated as necessary
 # return tuple (data, rotphase, off-left, off-right)
-def auto_find_off_window(data, rot_bins, nbins):
+def auto_find_off_window(data, rot_bins, nbins, adjust):
 	# find first the bin with maximum value
 	maxbin = np.argmax(data)
 	# exclude the area of 60% of all bins around the maxbin
@@ -111,9 +116,17 @@ def auto_find_off_window(data, rot_bins, nbins):
 	abins=trim_bins(abins) # trimming bins
 	# updating pulse window
 	exclsize=abins[-1]-abins[0]
-	# to be extra-cautious, increase it by 10% of the pulse window on both sides
-	le=abins[0]-int(0.1*exclsize)
-	re=abins[-1]+1+int(0.1*exclsize)
+	# to be extra-cautious, increase it by 15% of the pulse window on both sides
+	le=abins[0]-int(0.15*exclsize)
+	re=abins[-1]+1+int(0.15*exclsize)
+	# doing manual adjustment of the off-pulse window
+	if adjust[0] == 'l': # only adjusting the left edge
+		le+=int(adjust[1:])
+	elif adjust[0] == 'r': # only adjusting the right edge
+		re+=int(adjust[1:])
+	else: # adjusting both sides
+		le-=int(adjust)
+		re+=int(adjust)
 	# extra rotation by "le" bins again, so left edge will be at 0
 	data = bestprof_rotate(data, le)
 	# total rotation in phase
@@ -147,6 +160,10 @@ mean/rms in the 'Off' mode (inclusive). Default: %default", default=0, type='int
         cmdline.add_option('--off-right', dest='off_right', metavar='BIN#', help="Right edge of the off-pulse window to calculate \
 mean/rms in the 'Off' mode (exclusive). Default: 10%-bin of the profile", default=-1, type='int')
 	cmdline.add_option('--auto-off', dest='is_auto_off', action="store_true", help="Automatic determination of OFF region", default=False)
+        cmdline.add_option('--auto-off-adjust', dest='auto_off_adjust', metavar='[l|r][-+]#BINS', help="Adjust the automatically determined ON-pulse window by #BINS \
+on both sides, or only left if preceded by 'l' character, or right edge if preceded by the 'r' character. Negative (-) or positive (+) signs can also be used. \
+When used without 'l' or 'r' the positive sign means window is increasing, and negative sign - decreasing. NOTE, that you are adjusting ON-pulse window here, not \
+OFF-pulse window, and 'l', 'r' correspond to ON-pulse window boundaries", default="0", type='str')
         cmdline.add_option('--osm-min', dest='osm_min', metavar='MIN PROB', help="Minimum probability value to be used \
 to calculate the mean and rms, default: min possible", type='float')
         cmdline.add_option('--osm-max', dest='osm_max', metavar='MAX PROB', help="Maximum probability value to be used \
@@ -178,6 +195,10 @@ information. The argument is the pulsar name or any other label. If argument is 
 		print "You can't use 'Psrstat' method when option --presto is used!"
 		sys.exit(1)
 
+	# to make sure to set up boolean switch in case only adjust option was used
+	if opts.auto_off_adjust != "0":
+		opts.is_auto_off = True
+
 	for infile in args:
 		if opts.is_presto: # Presto's .bestprof
 			bpobj = bp.bestprof(infile)
@@ -189,7 +210,7 @@ information. The argument is the pulsar name or any other label. If argument is 
 
 			# auto-find of the OFF-pulse window
 			if opts.is_auto_off:
-				(data, opts.rot_bins, opts.off_left, opts.off_right) = auto_find_off_window(data, opts.rot_bins, nbins)
+				(data, opts.rot_bins, opts.off_left, opts.off_right) = auto_find_off_window(data, opts.rot_bins, nbins, opts.auto_off_adjust)
 			else:
 				if opts.rot_bins != 0:
 					data = bestprof_rotate(data, opts.rot_bins)
@@ -216,7 +237,7 @@ information. The argument is the pulsar name or any other label. If argument is 
 
 			# auto-find of the OFF-pulse window
 			if opts.is_auto_off:
-				(data, opts.rot_bins, opts.off_left, opts.off_right) = auto_find_off_window(data, opts.rot_bins, nbins)
+				(data, opts.rot_bins, opts.off_left, opts.off_right) = auto_find_off_window(data, opts.rot_bins, nbins, opts.auto_off_adjust)
 				# and do total rotation for the input file as well (for psrstat)
 				raw.rotate_phase(opts.rot_bins)
 			else:
@@ -417,8 +438,8 @@ information. The argument is the pulsar name or any other label. If argument is 
 			else:
 				fig = plt.figure(figsize=(8,6))
 				ax1 = fig.add_subplot(211)
-			plt.xlabel("Bin")
-			plt.ylabel("S/N")
+			plt.xlabel("Bin", fontsize=12)
+			plt.ylabel("S/N", fontsize=12)
 			if opts.method == "QQ":
 				ax1.plot(range(len(qq_prof)), qq_prof, "g-", alpha=0.7)
 				ax1.axvline(x=qq_binpeak, linestyle="--", color="black")
@@ -480,8 +501,8 @@ information. The argument is the pulsar name or any other label. If argument is 
 				ax2 = fig.add_subplot(312)
 			else:
 				ax2 = fig.add_subplot(212)
-			plt.xlabel("Data sample values")
-			plt.ylabel("Number")
+			plt.xlabel("Data sample values", fontsize=12)
+			plt.ylabel("Number", fontsize=12)
 			if opts.method == "QQ":
 				histmean = qq_mean
 				histrms = qq_rms
@@ -498,15 +519,16 @@ information. The argument is the pulsar name or any other label. If argument is 
 			fitfunc  = lambda p, x: p[0]*np.exp(-0.5*((x-histmean)/histrms)**2)+p[1]
 			errfunc  = lambda p, x, y: (y - fitfunc(p, x))			
 			init  = [1.0, 0.5]
-			n, bins, patches = plt.hist(data, bins=opts.histbins, color='skyblue', alpha=0.4)
+			n, bins, patches = ax2.hist(data, bins=opts.histbins, color='skyblue', alpha=0.4)
 			out   = leastsq(errfunc, init, args=(bins[:opts.histbins], n[:opts.histbins]))
-			plt.plot(bins, fitfunc(out[0], bins), color='green', linewidth=2, label='$\mu$ = %g\n$\sigma$ = %g' % (histmean, histrms))
+			ax2.plot(bins, fitfunc(out[0], bins), color='green', linewidth=2, label='$\mu$ = %g\n$\sigma$ = %g' % (histmean, histrms))
+			plt.gca().minorticks_on()
 			plt.legend()
 
 			if opts.method == "QQ":
 				ax3 = fig.add_subplot(313)
-				plt.xlabel("OSM (quantiles)")
-				plt.ylabel("OSR (ordered values)")
+				plt.xlabel("OSM (quantiles)", fontsize=12)
+				plt.ylabel("OSR (ordered values)", fontsize=12)
 				osr=(osr-qq_mean)/qq_rms
 				ax3.plot(osm, osr, "b-", alpha=0.7)
 				ax3.axhline(y=osr[qmin], linestyle="--", color="orange")
@@ -515,6 +537,7 @@ information. The argument is the pulsar name or any other label. If argument is 
 				ax3.axvline(x=osm[qmax], linestyle="--", color="orange")
 				plt.gca().minorticks_on()
 
+			plt.tight_layout()
 	                if opts.is_saveonly:
         	                plt.savefig(pngname)
                		else:
