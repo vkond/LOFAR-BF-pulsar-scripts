@@ -83,6 +83,7 @@ if __name__=="__main__":
 
 
 		# loop over used stations to collect info about flagged tiles
+		total_tiles = 0
 		nflagged = 0
 		st_worst = []
 		worst = -1
@@ -110,11 +111,23 @@ if __name__=="__main__":
 			if opts.is_verbose:
 				print "Number of core sub-stations: %d" % (ncorestations)
 			ncorestations /= 2
-			fraction = float(nflagged) / (24 * len(stations))
-			worst_fraction = float(worst) / 24.
+			total_tiles=24*len([s for s in stations if s[0:2] == "CS"]) + 48*len([s for s in stations if s[0:2] == "RS"]) + \
+				96*len([s for s in stations if s[0:2] != "CS" and s[0:2] != "RS"])
+			fraction = float(nflagged) / total_tiles
+			if any([s for s in st_worst if s[0:2] == "CS"]):
+				worst_fraction = float(worst) / 24.
+			elif any([s for s in st_worst if s[0:2] == "RS"]):
+				worst_fraction = float(worst) / 48.
+			else:
+				worst_fraction = float(worst) / 96.
 		else:
-			fraction = float(nflagged) / (48 * len(stations))
-			worst_fraction = float(worst) / 48.
+			total_tiles=48*len([s for s in stations if s[0:2] == "RS" or s[0:2] == "CS"]) + \
+				96*len([s for s in stations if s[0:2] != "CS" and s[0:2] != "RS"])
+			fraction = float(nflagged) / total_tiles
+			if any([s for s in st_worst if s[0:2] == "CS" or s[0:2] == "RS"]):
+				worst_fraction = float(worst) / 48.
+			else:
+				worst_fraction = float(worst) / 96.
 		if opts.is_verbose:
 			print "Number of core stations: %d" % (ncorestations)
 			print "Number of total flagged tiles: %d" % (nflagged)
@@ -122,7 +135,7 @@ if __name__=="__main__":
 			if worst != 0:
 				print "Worst (sub-)station(s) [#tiles=%d, fraction=%g%%]: %s" % (worst, worst_fraction * 100., ",".join(st_worst))
 		else:
-			print "%g" % (fraction)
+			print "%g %d %d" % (fraction, nflagged, total_tiles)
 	except:
 		print "Crashed..."
 		sys.exit(1)
