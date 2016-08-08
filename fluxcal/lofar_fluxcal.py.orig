@@ -40,18 +40,6 @@
 #              npol, integration time and bandwidth. In the output, this
 #              is now called "SEFD", and previous "SEFD" is renamed to
 #              "Sensit."
-# 13.07.2016 - Vlad Kondratiev
-#              added --station option to be used for calibrating observations
-#              where only single station was used (e.g. FE). However, for now
-#              Jones matrix values for the reference CasA observation are
-#              still calculated for the CS001
-# 05.08.2016 - Vlad Kondratiev
-#              casa_beamcorr is now a dictionary with CasA correction factors
-#              for all the CS and INTL stations. For RS stations mscorpol is
-#              currently failing. So, now user can choose the reference station
-#              with --station option even if more than 1 stations were used.
-#              Default is now made CS002. If only one station was used, this station
-#              will be default one unless it is specified with --station
 """
 	Flux-calibrate the input PSRFITS (Psrchive) file
 	and outputs in a separate ascii file all the 
@@ -92,18 +80,6 @@
                      added calculating "real" SEFD without taking into account
                      npol, integration time and bandwidth. In the output, this
                      is now called "SEFD", and previous "SEFD" is renamed to "Sensit."
-	13.07.2016 - Vlad Kondratiev
-                     added --station option to be used for calibrating observations
-	             where only single station was used (e.g. FE). However, for now
-	             Jones matrix values for the reference CasA observation are
-	             still calculated for the CS001
-	05.08.2016 - Vlad Kondratiev
-       		     casa_beamcorr is now a dictionary with CasA correction factors
-		     for all the CS and INTL stations. For RS stations mscorpol is
-                     currently failing. So, now user can choose the reference station
-                     with --station option even if more than 1 stations were used.
-                     Default is now made CS002. If only one station was used, this station
-                     will be default one unless it is specified with --station
 """
 
 import numpy as np
@@ -141,8 +117,7 @@ def read_meta(h5file):
 	except:
 		ncorestations = 0
 		flagged_fraction = None
-		stations=[]
-	return (ncorestations, flagged_fraction, stations)
+	return (ncorestations, flagged_fraction)
 
 # Tom's function to get number of bad tiles/dipoles using imaging
 # data close in time to given pulsar obs
@@ -289,9 +264,6 @@ Default is maximum fittable starting from number of bins minus 1", default=-1, t
 Default is for LOFAR (%default)", default="52:52:59.88", type='str')
         cmdline.add_option('--longitude', dest='longitude', metavar='DD:MM:SS.SS', help="specify the longitude of a site. \
 Default is for LOFAR (%default)", default="06:52:00.12", type='str')
-        cmdline.add_option('--station', dest='onlystation', metavar='NAME', help="Name of the station for this observation to be used for calibration. \
-Without this option the default station is CS002 when many core stations were used in observation. If only one station was used, this station will be the \
-reference one unless this option is used", default="", type='str')
 	cmdline.add_option('-q', '--quiet', dest='is_quiet', action="store_true", help="Quiet batch mode, no print output", default=False)
 	cmdline.add_option('-v', '--verbose', dest='is_verbose', action="store_true", help="Verbose output, print extra info", default=False)
 	cmdline.add_option('-V', '--vv', '--very-verbose', dest='is_very_verbose', action="store_true", help="Print related info for every calibrated channel", default=False)
@@ -445,25 +417,8 @@ reference one unless this option is used", default="", type='str')
 	# reading h5 file to get info about Nstat and in the future flagged tiles/dipoles
 	badtiles = None
 	if opts.metafile != "":
-		(nstat, badtiles, stations) = read_meta(opts.metafile)
-		if nstat != 0: 
-			opts.nstations = nstat
-		if len(stations) == 1:			
-			if opts.onlystation == "": opts.onlystation = stations[0][0:5]
-			opts.nstations = 1
-		else:
-			if opts.onlystation == "": opts.onlystation = "CS002"
-	else:
-		if opts.nstations > 1:
-			if opts.onlystation == "": opts.onlystation = "CS002"
-		elif opts.nstations <= 0:
-			print "Number of stations should be more than 0!"
-			sys.exit(1)
-		else:
-			if opts.onlystation == "":
-				print "Only one station is used, but it's not known what station."
-				print "Either is .h5 metafile or provide reference station using --station option!"
-				sys.exit(1)
+		(nstat, badtiles) = read_meta(opts.metafile)
+		if nstat != 0: opts.nstations = nstat
 
 	# checking if user gave ObsId for the badtiles fraction
 	if badtiles is None:
@@ -672,7 +627,7 @@ reference one unless this option is used", default="", type='str')
 		elif opts.model == 'arisN':  # here we are using scaling with EL from Noutsos et al. (2015)
 			aeffs=lofar_gain_range_arisN(lowfreq, lowfreq+nchan*chan_bw, elevation, freqs)
 		elif opts.model == 'hamaker_carozzi':  # here we are using Hamaker/Carozzi model
-			aeffs=lofar_gain_range_hamaker_carozzi_center_station(lowfreq, lowfreq+nchan*chan_bw, elevation, midpoint_mjd, direction, opts.onlystation, freqs)
+			aeffs=lofar_gain_range_hamaker_carozzi_center(lowfreq, lowfreq+nchan*chan_bw, elevation, midpoint_mjd, direction, freqs)
 		else: # by default the beam model is from Arts et al. (2013)
 			aeffs=lofar_gain_range_arts(lowfreq, lowfreq+nchan*chan_bw, elevation, freqs)
 
