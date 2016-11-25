@@ -23,6 +23,12 @@
 #                in different tarballs. 
 # Mar 17, 2016 - added downloadng from Poznan (PL) LTA site
 # Jul 27, 2016 - added --stage-only option
+# Nov 26, 2016 - added query to retrieve the data from projects
+#                that became public and you were not the member
+# Nov 26, 2016 - added logging handling when communicating with the
+#                database; there is no logfile now when there are
+#                errors; output on the screen can be turned off
+#                with the cmdline option -q
 #
 import numpy as np
 import time
@@ -94,6 +100,77 @@ WHERE fo.data_object = dp.object_id \
   AND dp.\"+PROJECT\" = SYS_CONTEXT('AWCONTEXT','PROJECTID') \
   AND dp.UnspecifiedProcess = pr.object_id"
 
+#
+# This superquery is for the case when data already became public and you are not the original
+# member of this project. Then, these data can be retrieved from the LTA by specifying "All public data" as project
+# and then choosing appropriate project within these All data
+# Luciano's email:
+# Hi Vlad,
+# if you select as project "LC3_024" (for example), the system will always check if you are a member or not and will not let you get data.
+# You need to select "All public data" as your project, then in the advanced window for Observation search, you can select the project within "All public data".
+# 
+# To do it from Python:
+# Hi Vlad,
+# Willem Jan clarified that when you use with the python scripts, you need to set project "ALL" first.
+#
+# Then you need to construct a query and, if you know the project the data is in, limit 
+# the query to that project data. An example:
+# 
+# python
+# context.set_project('ALL')
+# q = CorrelatedDataProduct.select_all()
+# q &= q.project_only('LC0_017')
+# print(len(q))
+# -> 1800
+# 
+# Before running this superquery, you have set context as "ALL" and then 
+# substitute %s with the corresponding project code
+#
+public_superquery="SELECT fo.FILENAME, fo.FILESIZE, fo.CREATION_DATE, fo.URI, obs.ObservationID \
+FROM AWOPER.BeamformedDataProduct dp, \
+     AWOPER.FileObject fo, \
+     AWOPER.Observation obs, \
+     AWOPER.FORMEDDATAPRODUCT$OBSERVATIONS dp_obs \
+WHERE fo.data_object = dp.object_id \
+  AND fo.isValid > 0 \
+  AND dp.isValid > 0 \
+  AND dp.\"+PROJECT\" = (SELECT ID FROM AWOPER.AWEPROJECTS WHERE NAME='%s') \
+  AND dp_obs.object_id = dp.object_id \
+  AND dp_obs.column_value = obs.object_id \
+UNION \
+SELECT fo.FILENAME, fo.FILESIZE, fo.CREATION_DATE, fo.URI, obs.ObservationID \
+FROM AWOPER.PulpDataProduct dp, \
+     AWOPER.FileObject fo, \
+     AWOPER.Observation obs, \
+     AWOPER.PulpDataProduct$Observations dp_obs \
+WHERE fo.data_object = dp.object_id \
+  AND fo.isValid > 0 \
+  AND dp.isValid > 0 \
+  AND dp.\"+PROJECT\" = (SELECT ID FROM AWOPER.AWEPROJECTS WHERE NAME='%s') \
+  AND dp_obs.object_id = dp.object_id \
+  AND dp_obs.column_value = obs.object_id \
+UNION \
+SELECT fo.FILENAME, fo.FILESIZE, fo.CREATION_DATE, fo.URI, obs.ObservationID \
+FROM AWOPER.PulpSummaryDataProduct dp, \
+     AWOPER.FileObject fo, \
+     AWOPER.Observation obs, \
+     AWOPER.UMMARYDATAPRODUCT$OBSERVATIONS dp_obs \
+WHERE fo.data_object = dp.object_id \
+  AND fo.isValid > 0 \
+  AND dp.isValid > 0 \
+  AND dp.\"+PROJECT\" = (SELECT ID FROM AWOPER.AWEPROJECTS WHERE NAME='%s') \
+  AND dp_obs.object_id = dp.object_id \
+  AND dp_obs.column_value = obs.object_id \
+UNION \
+SELECT fo.FILENAME, fo.FILESIZE, fo.CREATION_DATE, fo.URI, pr.ObservationID \
+FROM AWOPER.UnspecifiedDataProduct dp, \
+     AWOPER.FileObject fo, \
+     AWOPER.UnspecifiedProcess pr \
+WHERE fo.data_object = dp.object_id \
+  AND fo.isValid > 0 \
+  AND dp.isValid > 0 \
+  AND dp.\"+PROJECT\" = (SELECT ID FROM AWOPER.AWEPROJECTS WHERE NAME='%s') \
+  AND dp.UnspecifiedProcess = pr.object_id"
 
 # funtion to download files from LTA
 def retrieve(data, rf=""):
@@ -236,6 +313,8 @@ using given csv file. One must specify project as well with --project option. If
                            help="specify the LTA username. By default, it's the same as your current login name", default="", type='str')
 	cmdline.add_option('-l', '--log', action="store_true", dest='is_log',
                            help="optional parameter to turn on wget output", default=False)
+        cmdline.add_option('-q', '--quiet', action="store_true", dest='is_quiet',
+                           help="turn off logging from the communication with the LTA database", default=False)
         (opts, args) = cmdline.parse_args()
 
 	# canceling --sap, --tab, and --part options when --summary-only is given
@@ -255,6 +334,14 @@ using given csv file. One must specify project as well with --project option. If
 		import awlofar
 		from common.database.Database import database
 		from common.database.Context import context
+		from common.config.Environment import Env
+
+		# re-directing log-messages from log-files in the current dir to /dev/null
+		Env['log'].filename = "/dev/null"
+		# to turn off logging on the screen
+		if opts.is_quiet:
+			Env['logprint'] = 0
+
 	        # setting specific project
 	        if opts.project != "":
         	        context.set_project(opts.project)
@@ -262,9 +349,11 @@ using given csv file. One must specify project as well with --project option. If
         	        print "You should specify project to query when using --query option!"
                 	sys.exit(1)
 
-	        # running the super-query
-        	query_result=database.execute_select(superquery)
-
+		# running the super-query
+		query_result=database.execute_select(superquery)
+		if len(query_result) == 0: # this potentially means that you should run query for public data
+			context.set_project("ALL")
+			query_result=database.execute_select(public_superquery % (opts.project, opts.project, opts.project, opts.project))
 
 	if not opts.is_obsids:
 		inputfiles = args
