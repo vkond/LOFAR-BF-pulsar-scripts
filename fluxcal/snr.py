@@ -15,6 +15,9 @@
 #              ON-pulse window (and correspondingly OFF-pulse
 #              window as well) if automatic usage 
 #              of --auto-off is not enough
+# 22.12.2016 - Vlad Kondratiev
+#              removed getting and applying weights as
+#              they are already applied during FTp scrunching
 #
 import numpy as np
 import os, os.path, stat, glob, sys, getopt, re
@@ -232,8 +235,8 @@ information. The argument is the pulsar name or any other label. If argument is 
 	        	r = raw.get_data()
 	        	#time stokes f phase
         		data = r[0,0,0,:]
-		        weights = raw.get_weights()
-			data[(weights[0]==0)] = 0.0
+		        #weights = raw.get_weights()
+			#data[(weights[0]==0)] = 0.0
 
 			# auto-find of the OFF-pulse window
 			if opts.is_auto_off:
