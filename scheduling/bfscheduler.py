@@ -576,7 +576,8 @@ class psrSched:
 		rounding = (seconds + 0.5*round_to) // round_to * round_to
 		date     = date + timedelta(0, rounding - seconds, -date.microsecond)
 
-		if str(ephem.Date(date)).split(":")[-1] == "59":
+                if int(ephem.Date(date).tuple()[-1]) == 59:
+		#if str(ephem.Date(date)).split(":")[-1] == "59":
 			return ephem.Date(ephem.Date(date) + 0.000001*ephem.second)
 		else:
 			return ephem.Date(date)
