@@ -15,6 +15,11 @@ python setup.py install --prefix=<YOUR PREFIX>
 After the installation have a look at ${HOME}/.awe/Environment.cfg
   - you should at least define your database username and password.
 
+If it does not work, try to substitute your ${HOME}/.awe/Environment.cfg
+with the one here. It has many more settings, and lta retrieve/query
+won't probably work without them. Don't forget to update user name
+and password there with yours.
+
 Then you can use it like:
 lta-query.py -p LT3_001
 giving the project number. It will create corresponding *.csv file listing all data files
