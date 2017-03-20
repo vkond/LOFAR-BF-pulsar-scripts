@@ -291,9 +291,13 @@ if __name__=="__main__":
 	cmdline.add_option('--part', dest='part', metavar='PART#', help="retrieve data only for the given PART", default=-1, type='int')
 	cmdline.add_option('--summary-only', action="store_true", dest='is_summary_only',
                            help="retrieve only summary directories (CSplots, or CVplots, or redIS). This option has priority over \
-options --sap, --tab, and --part", default=False)
+options --sap, --tab, --part, and --skip-summary", default=False)
+	cmdline.add_option('--skip-summary', action="store_true", dest='is_skip_summary',
+                           help="Do not retrieve summaries", default=False)
 	cmdline.add_option('--stage-only', action="store_true", dest='is_stage_only',
                            help="Only stage the data without downloading", default=False)
+	cmdline.add_option('--skip-staging', action="store_true", dest='is_skip_staging',
+                           help="Skip staging and start downloading right away", default=False)
 	cmdline.add_option('--obsids', action="store_true", dest='is_obsids',
                            help="input arguments are ObsIDs instead of ascii files. Based on given ObsIDs \
 corresponding files will be looked at designated area on CEP2", default=False)
@@ -322,6 +326,7 @@ using given csv file. One must specify project as well with --project option. If
 		opts.sap = -1
 		opts.tab = -1
 		opts.part = -1
+		opts.is_skip_summary = False
 
 	if opts.csvfile != "":
 		opts.is_obsids = True
@@ -424,6 +429,13 @@ using given csv file. One must specify project as well with --project option. If
 					re.search("summaryIS", ff) is None:
 				print " %s\t - not summaries" % (ff)
 				continue	
+		if opts.is_skip_summary:
+			if re.search("CSplots", ff) is not None or re.search("CVplots", ff) is not None or \
+					(re.search("locus094", ff) and re.search("redIS", ff)) is not None or \
+					re.search("summaryCV", ff) is not None or re.search("summaryCS", ff) is not None or \
+					re.search("summaryIS", ff) is not None:
+				print " %s\t - summaries are skipped" % (ff)
+				continue	
 		if opts.sap != -1:
 			if re.search("_SAP%03d_" % (opts.sap), ff) is None:
 				print " %s\t - data are not for a given SAP=%d" % (ff, opts.sap)
@@ -461,83 +473,90 @@ using given csv file. One must specify project as well with --project option. If
 
 	total_start = time.time()
 	print
-	print "Staging..."
-	staging_start = time.time()
-	proxy=xmlrpclib.ServerProxy("https://webportal.astron.nl/service/xmlrpc")
-	staging_id=proxy.LtaStager.add_getid(opts.user, ["%s" % ss for ss in info[4]])
-	staging_status=""
 
-	download_urls=set()
-	while True:
-		time.sleep(5)
-		status=proxy.LtaStager.getstatus(opts.user, staging_id).strip().lower()
-		if status == "failed":
-			staging_end = time.time()
-			staging_time = staging_end - staging_start
-			print "failed!"
-			print "Staging time till the crash: %.1f s (%.1f min)" % (staging_time, staging_time/60.)
-			sys.exit(1)
-		elif status in ["new", "scheduled"]:
-			if status != staging_status:
-				staging_status=status
-				print "Staging status: %s" % (staging_status)
-			continue
-		elif status == "in progress":
-			if status != staging_status:
-				staging_status=status
-				print "Staging status: %s" % (staging_status)
-			if not opts.is_stage_only:
-				ready_urls=set(proxy.LtaStager.getstagedurls(opts.user, staging_id))
-				if set(ready_urls-download_urls): # if we have new files to retrieve
-					staging_end = time.time()
-					staging_time = staging_end - staging_start
-					print "Staging time since the staging start or after the previous retrieval: %.1f s (%.1f min)" % (staging_time, staging_time/60.)
-					staging_start = time.time()
-					indices=[ii for ii in np.arange(np.size(info[4])) if info[4,ii] in set(ready_urls - download_urls)]
-					# downloading
-					retrieve(info[:, indices], retryfile)
-					download_urls = ready_urls.copy()
-					staging_status=""
-		elif status == "success":
-			print "Staging status: %s" % (status)
-			staging_end = time.time()
-			staging_time = staging_end - staging_start
-			print "Staging time (includes possible overhead due to retrieval): %.1f s (%.1f min)" % (staging_time, staging_time/60.)
-			if not opts.is_stage_only:
-				print "Retrieving the rest of the files:"
-				ready_urls=set(proxy.LtaStager.getstagedurls(opts.user, staging_id))
-				if set(ready_urls-download_urls): # if we have new files to retrieve
-					indices=[ii for ii in np.arange(np.size(info[4])) if info[4,ii] in set(ready_urls - download_urls)]
-					# downloading
-					retrieve(info[:, indices], retryfile)
-				else:
-					print "All files have been retrieved!"
-			break
-		elif status == "partial success":
-			print "Staging status: %s" % (status)
-			staging_end = time.time()
-			staging_time = staging_end - staging_start
-			print "Staging time (includes possible overhead due to retrieval): %.1f s (%.1f min)" % (staging_time, staging_time/60.)
-			if not opts.is_stage_only:
-				print "Retrieving the rest of the staged files:"
-				ready_urls=set(proxy.LtaStager.getstagedurls(opts.user, staging_id))
-				if set(ready_urls-download_urls): # if we have new files to retrieve
-					indices=[ii for ii in np.arange(np.size(info[4])) if info[4,ii] in set(ready_urls - download_urls)]
-					# downloading
-					retrieve(info[:, indices], retryfile)
-				else:
-					print "All staged files have been retrieved!"
-			failed_indices=[ii for ii in np.arange(np.size(info[4])) if info[4,ii] not in ready_urls]
-			retryout=open(retryfile, "at")
-			print "\nFiles failed to be staged:"
-			for ff in info[0,failed_indices]:
-				print " %s" % ff
-				retryout.write("%s   %s   %s   %s   %s\n" % (info[0][ff], info[1][ff], info[2][ff], info[3][ff], info[4][ff]))
-			retryout.close()
-			break
-		else:
-			print "unknown staging status: %s. Exiting..." % (status)
-			break
+	if not opts.is_skip_staging:  # if we are not skipping staging...
+		print "Staging..."
+		staging_start = time.time()
+		proxy=xmlrpclib.ServerProxy("https://webportal.astron.nl/service/xmlrpc")
+		staging_id=proxy.LtaStager.add_getid(opts.user, ["%s" % ss for ss in info[4]])
+		staging_status=""
+
+		download_urls=set()
+		while True:
+			time.sleep(5)
+			status=proxy.LtaStager.getstatus(opts.user, staging_id).strip().lower()
+			if status == "failed":
+				staging_end = time.time()
+				staging_time = staging_end - staging_start
+				print "failed!"
+				print "Staging time till the crash: %.1f s (%.1f min)" % (staging_time, staging_time/60.)
+				sys.exit(1)
+			elif status in ["new", "scheduled"]:
+				if status != staging_status:
+					staging_status=status
+					print "Staging status: %s" % (staging_status)
+				continue
+			elif status == "in progress":
+				if status != staging_status:
+					staging_status=status
+					print "Staging status: %s" % (staging_status)
+				if not opts.is_stage_only:
+					ready_urls=set(proxy.LtaStager.getstagedurls(opts.user, staging_id))
+					if set(ready_urls-download_urls): # if we have new files to retrieve
+						staging_end = time.time()
+						staging_time = staging_end - staging_start
+						print "Staging time since the staging start or after the previous retrieval: %.1f s (%.1f min)" % (staging_time, staging_time/60.)
+						staging_start = time.time()
+						indices=[ii for ii in np.arange(np.size(info[4])) if info[4,ii] in set(ready_urls - download_urls)]
+						# downloading
+						retrieve(info[:, indices], retryfile)
+						download_urls = ready_urls.copy()
+						staging_status=""
+			elif status == "success":
+				print "Staging status: %s" % (status)
+				staging_end = time.time()
+				staging_time = staging_end - staging_start
+				print "Staging time (includes possible overhead due to retrieval): %.1f s (%.1f min)" % (staging_time, staging_time/60.)
+				if not opts.is_stage_only:
+					print "Retrieving the rest of the files:"
+					ready_urls=set(proxy.LtaStager.getstagedurls(opts.user, staging_id))
+					if set(ready_urls-download_urls): # if we have new files to retrieve
+						indices=[ii for ii in np.arange(np.size(info[4])) if info[4,ii] in set(ready_urls - download_urls)]
+						# downloading
+						retrieve(info[:, indices], retryfile)
+					else:
+						print "All files have been retrieved!"
+				break
+			elif status == "partial success":
+				print "Staging status: %s" % (status)
+				staging_end = time.time()
+				staging_time = staging_end - staging_start
+				print "Staging time (includes possible overhead due to retrieval): %.1f s (%.1f min)" % (staging_time, staging_time/60.)
+				if not opts.is_stage_only:
+					print "Retrieving the rest of the staged files:"
+					ready_urls=set(proxy.LtaStager.getstagedurls(opts.user, staging_id))
+					if set(ready_urls-download_urls): # if we have new files to retrieve
+						indices=[ii for ii in np.arange(np.size(info[4])) if info[4,ii] in set(ready_urls - download_urls)]
+						# downloading
+						retrieve(info[:, indices], retryfile)
+					else:
+						print "All staged files have been retrieved!"
+				failed_indices=[ii for ii in np.arange(np.size(info[4])) if info[4,ii] not in ready_urls]
+				retryout=open(retryfile, "at")
+				print "\nFiles failed to be staged:"
+				for ff in info[0,failed_indices]:
+					print " %s" % ff
+					retryout.write("%s   %s   %s   %s   %s\n" % (info[0][ff], info[1][ff], info[2][ff], info[3][ff], info[4][ff]))
+				retryout.close()
+				break
+			else:
+				print "unknown staging status: %s. Exiting..." % (status)
+				break
+
+	else: # start retrieving immediately
+		print "Staging is skipped"
+		print
+		retrieve(info[:,:], retryfile)
 
 	total_end = time.time()
 	total_time = total_end - total_start
