@@ -29,6 +29,7 @@
 #                database; there is no logfile now when there are
 #                errors; output on the screen can be turned off
 #                with the cmdline option -q
+# Mar 20, 2017 - added new options: --skip-summary and --skip-staging
 #
 import numpy as np
 import time
