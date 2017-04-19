@@ -52,6 +52,12 @@
 #              with --station option even if more than 1 stations were used.
 #              Default is now made CS002. If only one station was used, this station
 #              will be default one unless it is specified with --station
+# 19.04.2017 - Vlad Kondratiev
+#              changed default model to 'hamaker_carozzi';
+#              checking the bw value now, if it's negative or not, indicating the
+#              reversed frequency order. If it's negative, then calibration is
+#              aborted and user is warned to reverse the frequency order with
+#              the pam command
 """
 	Flux-calibrate the input PSRFITS (Psrchive) file
 	and outputs in a separate ascii file all the 
@@ -104,6 +110,12 @@
                      with --station option even if more than 1 stations were used.
                      Default is now made CS002. If only one station was used, this station
                      will be default one unless it is specified with --station
+        19.04.2017 - Vlad Kondratiev
+                     changed default model to 'hamaker_carozzi';
+                     checking the bw value now, if it's negative or not, indicating the
+                     reversed frequency order. If it's negative, then calibration is
+                     aborted and user is warned to reverse the frequency order with
+                     the pam command
 """
 
 import numpy as np
@@ -248,7 +260,7 @@ mean/rms after subtracting polynomial fit to the pulse profile. Default: %defaul
 values: 'arts' for the beam model by Arts et al. (2013), 'arisN' that uses theoretical maximum of Aeff in \
 zenith and then scales it with elevation as sin(EL)^1.39 as in Noutsos et al. (2015), and 'hamaker_carozzi' that uses \
 also theoretical maximum of Aeff in zenith and then calculates beam correcting coefficient based on Jones matrix \
-calculated using Hamaker model and antennaJones.py script by Tobia Carozzi. Default: %default", default="arts", type='str')
+calculated using Hamaker model and antennaJones.py script by Tobia Carozzi. Default: %default", default="hamaker_carozzi", type='str')
 	cmdline.add_option('-p', dest='to_Pscrunch', action="store_true", help="Add polarizations together. By default, each Stokes parameter \
 will be calibrated separately. Data in 'Coherence' or 'PPQQ' state will be first converted to 'Stokes' state.", default=False)
         cmdline.add_option('-b', '--bscrunch', dest='bscr', metavar='FACTOR', help="Bscrunch factor, \
@@ -438,6 +450,16 @@ reference one unless this option is used", default="", type='str')
 
 	cfreq = raw.get_centre_frequency()  # center freq in MHz
 	bw = raw.get_bandwidth()            # bandwidth in MHz
+        # checking if bw is negative. If it < 0, then it means that frequency order is reversed
+        # in this case we need to abort, as lowest frequency is expected to have lower index
+        # so, we abort and let user that (s)he needs to reverse the frequency order with the pam
+        # pam --reverse_freqs
+        if bw < 0:
+                print "Frequency order is reversed (highest frequency goes first, bandwidth value is negative)!"
+                print "You must reverse the frequency order before continuing with the calibration." 
+                print "You can do that with the pam command:"
+                print "pam --reverse_freqs [-e|-m|-u] <infile>"
+                sys.exit(1)
 	lowfreq = cfreq - bw/2.0            # lowest freq in MHz
 	chan_bw = bw/nchan                  # channel width in MHz
 	tobs = raw.integration_length()     # obs duration (in seconds)
