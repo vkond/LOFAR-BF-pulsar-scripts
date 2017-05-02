@@ -750,10 +750,10 @@ from the transit. Default = %default", default="120", type='int')
 						else: outline="\n".join(xmllines[:-2])
 					else:
 						outline="\n".join(xmllines[:5])
-						# for stupid reason MoM does not support descriptions longer than 256 symbols, so we first merge all pulsars together
-						# then we just take first 253 symbols, then exclude last truncated pulsar and then add ",..." in the end
+						# for stupid reason MoM does not support descriptions longer than 255 symbols, so we first merge all pulsars together
+						# then we just take first 251 symbols, then exclude last truncated pulsar and then add ",..." in the end
 						descr=", ".join([p[0] for p in schedpsrs])
-						if len(descr) > 256: descr=", ".join(descr[:253].split(", ")[:-1]) + ",..."
+						if len(descr) > 255: descr=", ".join(descr[:251].split(", ")[:-1]) + ",..."
 						outline+="\n\t<item index=\"0\">\n\t<lofar:folder topology_parent=\"true\">\n\t\t<topology>0</topology>\n\t\t<name>%s</name>\n\t\t<description>%s</description>\n\t\t<children>\n" % \
 							(opts.folder, descr)
 						outline+="\n".join(xmllines[5:-2])
