@@ -4,7 +4,9 @@
 # Version 1.0: uses old TAB addressing
 # Version 1.1: updated TABs but doesn't support multiple TABs
 # Version 1.2: TABs use offsets from the templates
-# Version 1.3 (current): changed default template directory to LOFARSOFT/...
+# Version 1.3: changed default template directory to LOFARSOFT/...
+# Version 1.4 (current): added --cluster option to specify DRAGNET cluster as well
+#
 import optparse as opt
 import numpy as np
 import random, string
@@ -26,7 +28,7 @@ class xmlSched:
 	# ra as HH:MM:SS.SS
 	# dec as [+/-]DD:MM:SS.SS
 	# tempdir - dir for output xml files
-	def __init__(self, template, project, index, psr, dur, start, end, ra, dec, bad_stations_str, tempdir=None):
+	def __init__(self, template, project, cluster, index, psr, dur, start, end, ra, dec, bad_stations_str, tempdir=None):
 
 		# list of all core stations (only numbers), real names should be preceded with CS%03d
 		self.corestations=[1, 2, 3, 4, 5, 6, 7, 11, 13, 17, 21, 24, 26, 28, 30, 31, 32, 101, 103, 201, 301, 302, 401, 501]
@@ -39,6 +41,7 @@ class xmlSched:
 			self.template_dir = "/home/kondratiev/scheduling/templates"
 		self.template = template
 		self.project = project
+                self.cluster = cluster
 		self.obsindex = index
 		self.psr = psr
 		self.length = str(dur)
@@ -83,6 +86,7 @@ nor in the templates/ sub-directory nor in the '%s' directory!" % (template, sel
 	# update the xml
 	def update(self):
 		self.updateProjectName(self.xmldoc.firstChild, self.project, "PROJECT_NAME")
+		self.updateClusterName(self.xmldoc.firstChild, self.cluster, "CLUSTER_NAME")
 		self.updatePointingIndex(self.xmldoc.firstChild, self.obsindex, "OBSINDEX")
 		self.updatePipelineIndex(self.xmldoc.firstChild, self.obsindex, "PIPEINDEX")
 		self.updatePointingName(self.xmldoc.firstChild, self.psr, "PSRNAME")
@@ -140,6 +144,14 @@ nor in the templates/ sub-directory nor in the '%s' directory!" % (template, sel
                         	root.childNodes[0].data=projectname
 	        for child in root.childNodes:
         	        self.updateProjectName(child, projectname, projectname_stem)
+
+	# update the name of the destination cluster (default - CEP4)
+	def updateClusterName(self, root, clustername, clustername_stem):
+                if root.nodeName == "name":
+                	if root.childNodes[0].data == clustername_stem:
+                        	root.childNodes[0].data=clustername
+	        for child in root.childNodes:
+        	        self.updateClusterName(child, clustername, clustername_stem)
 
 	# update the name of the pointing from "PSRNAME" to proper pulsar name
 	def updatePointingName(self, root, psrname, psrname_stem):
@@ -587,7 +599,7 @@ class psrSched:
 ###  M A I N ###
 if __name__ == "__main__":
 
-        version = "v1.3"
+        version = "v1.4"
         usage = "Usage: %prog [-h|--help] [OPTIONS]"
         cmd = opt.OptionParser(usage, version="%prog " + version)
         cmd.add_option('-f', '--infile', dest='targets_file', metavar='FILE',
@@ -610,6 +622,9 @@ xml-file. Body of the script will likely be some other program to do the necessa
                            help="specify the UT end date/time of a given time slot", default="", type='str')
         cmd.add_option('-p', '--project', dest='project', metavar='PROJECT',
                            help="specify project code. It's obligatory when --sched is used", default="", type='str')
+        cmd.add_option('-c', '--cluster', dest='cluster', metavar='CLUSTER',
+                           help="specify destination cluster name. Default is '%default'. It can also be 'DRAGNET'. \
+Partition specification is currently not used by the system, so it can be any string.", default="CEP4", type='str')
         cmd.add_option('--folder', dest='folder', metavar='MoM-FOLDER',
                            help="specify MoM folder for scheduled observations. By default, \
 all observations will be put in the root tree", default="", type='str')
@@ -722,7 +737,7 @@ from the transit. Default = %default", default="120", type='int')
 				else: bad_stations_str = schedpsrs[ii][6]
 			else: bad_stations_str = opts.bad_stations
 
-			xmltje = xmlSched(template, opts.project, ii, schedpsrs[ii][0], schedpsrs[ii][3], start_scan_str, end_scan_str, \
+			xmltje = xmlSched(template, opts.project, opts.cluster, ii, schedpsrs[ii][0], schedpsrs[ii][3], start_scan_str, end_scan_str, \
 					schedpsrs[ii][1], schedpsrs[ii][2], bad_stations_str)
 			# update xml
 			xmltje.update()
