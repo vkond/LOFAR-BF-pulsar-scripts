@@ -26,6 +26,8 @@ DE609 G 53.69881 9.96923   # Norderstedt (near Bielefeld)
 PL610 G 52.2759328 17.0741606 # Borowiec
 PL611 G 49.9649386 20.4896131 # Lazy
 PL612 G 53.5939042 20.5897506 # Baldy
+# New Irish station
+IE613 G 53.09498738 -7.9218627 # Birr
 # Remote stations:
 CS103 G 52.91574 6.89647
 # looks like RS305 is former RS104 ?...
