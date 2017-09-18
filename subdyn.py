@@ -134,7 +134,7 @@ def setup_plot(arr, title, colormap):
 	plt.clf()
 	ax = fig.add_subplot (111)
 	ax.set_zorder(0.1)   # to make moise y-cursor to get values from this 'Subband' axis, rather then from axr 'Freq' axis
-	cax = ax.imshow(arr, norm=colors.normalize(arr.min(), arr.max()), interpolation='nearest', aspect='auto', origin='lower', cmap=colormap)
+	cax = ax.imshow(arr, norm=colors.Normalize(arr.min(), arr.max()), interpolation='nearest', aspect='auto', origin='lower', cmap=colormap)
 	cbar = fig.colorbar (cax, orientation='horizontal', spacing='uniform', pad=0.1)
 	fig.suptitle ("%s %s" % (user_title, title), fontsize=fs, y=0.94)
         def printsub (val, pos=None): return '%d' % (subband_offset + val)
