@@ -30,6 +30,7 @@
 #                errors; output on the screen can be turned off
 #                with the cmdline option -q
 # Mar 20, 2017 - added new options: --skip-summary and --skip-staging
+# Oct 25, 2017 - domain name sara.nl has changed to surfsara.nl
 #
 import numpy as np
 import time
@@ -40,7 +41,7 @@ import subprocess, shlex
 from subprocess import PIPE, STDOUT, Popen
 
 # html prefix to wrap up srm links
-sara_html_prefix="https://lofar-download.grid.sara.nl/lofigrid/SRMFifoGet.py?surl="
+sara_html_prefix="https://lofar-download.grid.surfsara.nl/lofigrid/SRMFifoGet.py?surl="
 juelich_html_prefix="https://lofar-download.fz-juelich.de/webserver-lofar/SRMFifoGet.py?surl="
 poznan_html_prefix="https://lta-download.lofar.psnc.pl/lofigrid/SRMFifoGet.py?surl="
 
