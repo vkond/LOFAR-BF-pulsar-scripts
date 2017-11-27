@@ -45,6 +45,11 @@
 #              aborted and user is warned to reverse the frequency order with
 #              the pam command; Also printing a warning now that Freq-averaged
 #              values should be used with caution.
+# 27.11.2017 - Vlad Kondratiev
+#              improved calibration for international stations; correct number of
+#              tiles/dipoles is used now (96). This is valid only for hamaker_carozzi
+#              and arisN models. The arts model in its essence was implemented
+#              only for core stations
 """
 	Measures pulsar flux density in Jansky's for LOFAR HBA data
 	for the input PSRFITS (Psrchive) file.
@@ -90,6 +95,11 @@
                      aborted and user is warned to reverse the frequency order with
                      the pam command; Also printing a warning now that Freq-averaged
                      values should be used with caution.
+        27.11.2017 - Vlad Kondratiev
+                     improved calibration for international stations; correct number of
+                     tiles/dipoles is used now (96). This is valid only for hamaker_carozzi
+                     and arisN models. The arts model in its essence was implemented
+                     only for core stations
 """
 
 import numpy as np
@@ -120,6 +130,11 @@ def read_meta(h5file):
 		ncorestations = len([s for s in stations if s[0:2] == "CS"])
 		# because in the list for HBA there are sub-stations
 		if antenna == "HBA": ncorestations /= 2
+                # in case only one station (remote or international) was used
+                # if several non-core stations were used, then flux calibration won't be correct as
+                # here we assume coherent stations addition
+                if ncorestations == 0:
+                        ncorestations = len(stations)
 		# in the future here we should also add reading info
 		# of the flagged tiles/dipoles (broken antenna info)
 		flagged_fraction = None
@@ -277,8 +292,7 @@ to png-file instead of GUI", default=False)
 	# loading pyrap.measures as it required by mscorpol
 	if opts.model == 'hamaker_carozzi':
 		from pyrap.measures import measures
-		from lofar_gain_hamaker_carozzi import lofar_gain_range_hamaker_carozzi_center, lofar_gain_range_hamaker_carozzi_center_station, \
-			lofar_gain_range_hamaker_carozzi, lofar_gain_range_hamaker_carozzi_station
+		from lofar_gain_hamaker_carozzi import lofar_gain_range_hamaker_carozzi_center_station, lofar_gain_range_hamaker_carozzi_station
 
 	if opts.is_very_verbose:
 		opts.is_verbose = True	
@@ -515,11 +529,11 @@ to png-file instead of GUI", default=False)
 	if opts.model == 'arts':  # beam model by Arts et al. (2013)
 		aeffs=lofar_gain_range_arts(lowfreq, lowfreq+nchan*chan_bw, elevation, freqs)
 	elif opts.model == 'arisN':  # here we are using scaling with EL from Noutsos et al. (2015)
-		aeffs=lofar_gain_range_arisN(lowfreq, lowfreq+nchan*chan_bw, elevation, freqs)
+		aeffs=lofar_gain_range_arisN(lowfreq, lowfreq+nchan*chan_bw, elevation, opts.onlystation, freqs)
 	elif opts.model == 'hamaker_carozzi':  # here we are using Hamaker/Carozzi model
 		aeffs=lofar_gain_range_hamaker_carozzi_center_station(lowfreq, lowfreq+nchan*chan_bw, elevation, midpoint_mjd, direction, opts.onlystation, freqs)
-	else: # by default the beam model is from Arts et al. (2013)
-		aeffs=lofar_gain_range_arts(lowfreq, lowfreq+nchan*chan_bw, elevation, freqs)
+	else: # by default the beam model is Hamaker/Carozzi model
+		aeffs=lofar_gain_range_hamaker_carozzi_center_station(lowfreq, lowfreq+nchan*chan_bw, elevation, midpoint_mjd, direction, opts.onlystation, freqs)
 
 	if opts.is_very_verbose:
 		print "#"
@@ -677,11 +691,11 @@ to png-file instead of GUI", default=False)
 	if opts.model == 'arts':  # beam model by Arts et al. (2013)
 		Aeff = lofar_gain_range_arts(lowfreq, lowfreq+nchan*chan_bw, elevation)
 	elif opts.model == 'arisN':  # here we are using scaling with EL from Noutsos et al. (2015)
-		Aeff = lofar_gain_range_arisN(lowfreq, lowfreq+nchan*chan_bw, elevation)
+		Aeff = lofar_gain_range_arisN(lowfreq, lowfreq+nchan*chan_bw, elevation, opts.onlystation)
 	elif opts.model == 'hamaker_carozzi':  # here we are using Hamaker/Carozzi model
 		Aeff = lofar_gain_range_hamaker_carozzi_center_station(lowfreq, lowfreq+nchan*chan_bw, elevation, midpoint_mjd, direction, opts.onlystation)
-	else: # by default the beam model is from Arts et al. (2013)
-		Aeff = lofar_gain_range_arts(lowfreq, lowfreq+nchan*chan_bw, elevation)
+	else: # by default the beam model is Hamaker/Carozzi model
+		Aeff = lofar_gain_range_hamaker_carozzi_center_station(lowfreq, lowfreq+nchan*chan_bw, elevation, midpoint_mjd, direction, opts.onlystation)
 	Aeff *= ((opts.nstations**opts.cohfactor) * (1.-badtiles))
 	# Gain (K/Jy)
 	Gain = (Aeff * 1e4 * 1e-23) / (2.* kb)

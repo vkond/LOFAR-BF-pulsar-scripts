@@ -29,6 +29,12 @@
 # 05.08.2016 - Vlad Kondratiev
 #              now casa_beamcorr is a dictionary for CS and INTL stations
 #              and it gets imported from casa_beamcorr_pkg.py
+# 27.11.2017 - Vlad Kondratiev
+#              get_lofar_aeff_max is now dependent on number of tiles/dipoles
+#              Either it is 48 (default), or 96 for international stations
+#              Removed functions lofar_gain_range_hamaker_carozzi_center and 
+#              lofar_gain_range_hamaker_carozzi. Only their twins which are also
+#              dependent on station (CS002 is the default) are left
 """
 	Defines functions to calculate the effective area of
 	the HBA station at a given freq, EL/ZA and time
@@ -60,6 +66,12 @@
         05.08.2016 - Vlad Kondratiev
                      now casa_beamcorr is a dictionary for CS and INTL stations
                      and it gets imported from casa_beamcorr_pkg.py
+        27.11.2017 - Vlad Kondratiev
+                     get_lofar_aeff_max is now dependent on number of tiles/dipoles
+                     Either it is 48 (default), or 96 for international stations
+                     Removed functions lofar_gain_range_hamaker_carozzi_center and 
+                     lofar_gain_range_hamaker_carozzi. Only their twins which are also
+                     dependent on station (CS002 is the default) are left
 """
 
 import os, sys, math
@@ -89,17 +101,17 @@ from casa_beamcorr_pkg import *
 # dipole within the full array. Here I am using only first term, which is incorrect
 # for LBA_INNER. Also, for LBA_INNER there are 46 dipoles in the station - not 48 
 # freq is in MHz, el is in degrees
-def get_lofar_aeff_max(freq, el):
+def get_lofar_aeff_max(freq, el, nelem=48):
 	"""
 	Calculate the Aeff using given frequency and EL
 	"""
 	wavelen = 300.0 / freq
 	# HBA
 	if freq >= 100.:
-		aeff = 48. * 16. * np.minimum((wavelen * wavelen)/3., 1.5625)
+		aeff = nelem * 16. * np.minimum((wavelen * wavelen)/3., 1.5625)
 	# LBA (LBA_OUTER)
 	else:
-		aeff = 48. * (wavelen * wavelen)/3.
+		aeff = nelem * (wavelen * wavelen)/3.
 	return aeff
 
 # Function to return beam correction factor using Jones matrix
@@ -131,80 +143,22 @@ def get_beam_correction_factor_hamaker_carozzi(mjd, direction, freq, station="CS
 # The size of the returned array is smaller by 1 than the size of the input 'freqs' array
 # f1 and f2 are in MHz, freqs in MHz, direction is the value returned by pyrap.measures().direction
 # based on pulsar RA and DEC
-def lofar_gain_range_hamaker_carozzi(f1, f2, el, mjd, direction, freqs=None):
-
-	nparts=1 # 100
-	# Calculate single average value of Aeff
-	if freqs == None:
-		tot=0
-		for ii in xrange(nparts+1):
-			freq = f1 + ii*(f2-f1)/nparts
-			aeff = get_lofar_aeff_max(freq, el)  # get first the maximum theoretical Aeff value
-			# Here we calculate the beam correction factor to correct Aeff
-			beamcorr = get_beam_correction_factor_hamaker_carozzi(mjd, direction, freq)
-			aeff /= beamcorr
-			tot += aeff
-		tot /= (nparts+1)
-		return tot
-	else:
-		aeffs=[]
-		for ff in xrange(1, len(freqs)):
-			tot=0
-			for ii in xrange(nparts+1):
-				freq = freqs[ff-1] + ii*(freqs[ff]-freqs[ff-1])/nparts
-				aeff = get_lofar_aeff_max(freq, el)  # get first the maximum theoretical Aeff value
-				# Here we calculate the beam correction factor to correct Aeff
-				beamcorr = get_beam_correction_factor_hamaker_carozzi(mjd, direction, freq)
-				aeff /= beamcorr
-				tot += aeff
-			tot /= (nparts+1)
-			aeffs.append(tot)
-		return aeffs
-
-# Function to calculate the average Aeff for a frequency range f1-f2 and EL, MJD, RA and DEC.
-# Return value is either single average Aeff value.
-# If frequency array 'freqs' is given, then average Aeff is calculated for each frequency range f0-f1, f1-f2, f2-f3,....
-# in the array and returned value is the list of average Aeffs.
-# The size of the returned array is smaller by 1 than the size of the input 'freqs' array
-# f1 and f2 are in MHz, freqs in MHz, direction is the value returned by pyrap.measures().direction
-# based on pulsar RA and DEC
-def lofar_gain_range_hamaker_carozzi_center(f1, f2, el, mjd, direction, freqs=None):
-
-	# Calculate single average value of Aeff
-	if freqs == None:
-		freq = (f1 + f2)/2.
-		aeff = get_lofar_aeff_max(freq, el)  # get first the maximum theoretical Aeff value
-		# Here we calculate the beam correction factor to correct Aeff
-		beamcorr = get_beam_correction_factor_hamaker_carozzi(mjd, direction, freq)
-		aeff /= beamcorr
-		return aeff
-	else:
-		aeffs=[]
-		for ff in xrange(1, len(freqs)):
-			freq = (freqs[ff-1] + freqs[ff])/2.
-			aeff = get_lofar_aeff_max(freq, el)  # get first the maximum theoretical Aeff value
-			# Here we calculate the beam correction factor to correct Aeff
-			beamcorr = get_beam_correction_factor_hamaker_carozzi(mjd, direction, freq)
-			aeff /= beamcorr
-			aeffs.append(aeff)
-		return aeffs
-
-# Function to calculate the average Aeff for a frequency range f1-f2 and EL, given MJD, RA and DEC.
-# Return value is either single average Aeff value.
-# If frequency array 'freqs' is given, then average Aeff is calculated for each frequency range f0-f1, f1-f2, f2-f3,....
-# in the array and returned value is the list of average Aeffs.
-# The size of the returned array is smaller by 1 than the size of the input 'freqs' array
-# f1 and f2 are in MHz, freqs in MHz, direction is the value returned by pyrap.measures().direction
-# based on pulsar RA and DEC
 def lofar_gain_range_hamaker_carozzi_station(f1, f2, el, mjd, direction, station="CS002", freqs=None):
 
+        # checking the name of the station. If it is - core or remote, then number of tiles/dipoles = 48,
+        # otherwise - it is international, and number of elements is 96
+        if station[0:2] == "CS" or station[0:2] == "RS":
+                nelem = 48
+        else:
+                nelem = 96
+
 	nparts=1 # 100
 	# Calculate single average value of Aeff
 	if freqs == None:
 		tot=0
 		for ii in xrange(nparts+1):
 			freq = f1 + ii*(f2-f1)/nparts
-			aeff = get_lofar_aeff_max(freq, el)  # get first the maximum theoretical Aeff value
+			aeff = get_lofar_aeff_max(freq, el, nelem)  # get first the maximum theoretical Aeff value
 			# Here we calculate the beam correction factor to correct Aeff
 			beamcorr = get_beam_correction_factor_hamaker_carozzi(mjd, direction, freq, station)
 			aeff /= beamcorr
@@ -217,7 +171,7 @@ def lofar_gain_range_hamaker_carozzi_station(f1, f2, el, mjd, direction, station
 			tot=0
 			for ii in xrange(nparts+1):
 				freq = freqs[ff-1] + ii*(freqs[ff]-freqs[ff-1])/nparts
-				aeff = get_lofar_aeff_max(freq, el)  # get first the maximum theoretical Aeff value
+				aeff = get_lofar_aeff_max(freq, el, nelem)  # get first the maximum theoretical Aeff value
 				# Here we calculate the beam correction factor to correct Aeff
 				beamcorr = get_beam_correction_factor_hamaker_carozzi(mjd, direction, freq, station)
 				aeff /= beamcorr
@@ -235,10 +189,17 @@ def lofar_gain_range_hamaker_carozzi_station(f1, f2, el, mjd, direction, station
 # based on pulsar RA and DEC
 def lofar_gain_range_hamaker_carozzi_center_station(f1, f2, el, mjd, direction, station="CS002", freqs=None):
 
+        # checking the name of the station. If it is - core or remote, then number of tiles/dipoles = 48,
+        # otherwise - it is international, and number of elements is 96
+        if station[0:2] == "CS" or station[0:2] == "RS":
+                nelem = 48
+        else:
+                nelem = 96
+
 	# Calculate single average value of Aeff
 	if freqs == None:
 		freq = (f1 + f2)/2.
-		aeff = get_lofar_aeff_max(freq, el)  # get first the maximum theoretical Aeff value
+		aeff = get_lofar_aeff_max(freq, el, nelem)  # get first the maximum theoretical Aeff value
 		# Here we calculate the beam correction factor to correct Aeff
 		beamcorr = get_beam_correction_factor_hamaker_carozzi(mjd, direction, freq, station)
 		aeff /= beamcorr
@@ -247,7 +208,7 @@ def lofar_gain_range_hamaker_carozzi_center_station(f1, f2, el, mjd, direction, 
 		aeffs=[]
 		for ff in xrange(1, len(freqs)):
 			freq = (freqs[ff-1] + freqs[ff])/2.
-			aeff = get_lofar_aeff_max(freq, el)  # get first the maximum theoretical Aeff value
+			aeff = get_lofar_aeff_max(freq, el, nelem)  # get first the maximum theoretical Aeff value
 			# Here we calculate the beam correction factor to correct Aeff
 			beamcorr = get_beam_correction_factor_hamaker_carozzi(mjd, direction, freq, station)
 			aeff /= beamcorr

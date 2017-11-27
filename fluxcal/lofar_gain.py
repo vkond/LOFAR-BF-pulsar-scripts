@@ -28,6 +28,9 @@
 # 24.04.2015 - Vlad Kondratiev
 #              moved hamaker_carozzi functions to another file
 #              lofar_gain_hamaker_carozzi.py
+# 27.11.2017 - Vlad Kondratiev
+#              arisN functions are now dependent on number of tiles/dipoles
+#              Either it is 48 (default), or 96 for international stations
 """
 	Calculates the LOFAR HBA effective area for a single 48-tile station
 	at the given frequency in the HBA frequency range 110-250 MHz. 
@@ -57,6 +60,9 @@
 	24.04.2015 - Vlad Kondratiev
 		     moved hamaker_carozzi functions to another file
 		     lofar_gain_hamaker_carozzi.py
+        27.11.2017 - Vlad Kondratiev
+                     arisN functions are now dependent on number of tiles/dipoles
+                     Either it is 48 (default), or 96 for international stations
 """
 
 import os, sys, math
@@ -451,17 +457,17 @@ def lofar_gain_range_arts(f1, f2, el, freqs=None, gfile=gainfile, flow=110, fhig
 # dipole within the full array. Here I am using only first term, which is incorrect
 # for LBA_INNER. Also, for LBA_INNER there are 46 dipoles in the station - not 48 
 # freq is in MHz, el is in degrees
-def get_lofar_gain_arisN(freq, el):
+def get_lofar_gain_arisN(freq, el, nelem=48):
 	"""
 	Calculate the Aeff using given frequency and EL
 	"""
 	wavelen = 300.0 / freq
 	# HBA
 	if freq >= 100.:
-		aeff = 48. * 16. * np.minimum((wavelen * wavelen)/3., 1.5625)
+		aeff = nelem * 16. * np.minimum((wavelen * wavelen)/3., 1.5625)
 	# LBA (LBA_OUTER)
 	else:
-		aeff = 48. * (wavelen * wavelen)/3.
+		aeff = nelem * (wavelen * wavelen)/3.
 	# scaling with elevation
 	aeff *= ((math.sin((math.pi*el)/180.))**(1.39))
 	return aeff
@@ -473,7 +479,14 @@ def get_lofar_gain_arisN(freq, el):
 # If frequency array 'freqs' is given, then Aeff is calculated for each frequency in the array
 # and returned value is the list of Aeffs
 # freq in MHz, elevation in degrees
-def lofar_gain_arisN(freq, el, is_quiet=False, freqs=None, is_plot=False):
+def lofar_gain_arisN(freq, el, station="CS002", is_quiet=False, freqs=None, is_plot=False):
+
+        # checking the name of the station. If it is - core or remote, then number of tiles/dipoles = 48,
+        # otherwise - it is international, and number of elements is 96
+        if station[0:2] == "CS" or station[0:2] == "RS":
+                nelem = 48
+        else: 
+                nelem = 96
 
 	# checking  the frequency range
 	if freq != 0:
@@ -514,7 +527,7 @@ def lofar_gain_arisN(freq, el, is_quiet=False, freqs=None, is_plot=False):
 		aeffs=np.zeros((nfreqs, nel), dtype=float)
 		for ff in xrange(nfreqs):
 			for ee in xrange(nel):
-				aeffs[ff][ee] = get_lofar_gain_arisN(flow+fstep*ff, ee)
+				aeffs[ff][ee] = get_lofar_gain_arisN(flow+fstep*ff, ee, nelem)
 				print "%d\t\t%d\t\t%g" % (flow+fstep*ff, ee, aeffs[ff][ee])
 
 	        # making the plot
@@ -538,7 +551,7 @@ def lofar_gain_arisN(freq, el, is_quiet=False, freqs=None, is_plot=False):
 		print "#--------------------------"
 		aeffs=[]
 		for ff in xrange(nfreqs):
-			aeff=get_lofar_gain_arisN(flow+fstep*ff, el)
+			aeff=get_lofar_gain_arisN(flow+fstep*ff, el, nelem)
 			aeffs.append(aeff)
 			print "%d\t\t%g" % (flow+ff*fstep, aeff)
 
@@ -559,7 +572,7 @@ def lofar_gain_arisN(freq, el, is_quiet=False, freqs=None, is_plot=False):
 		print "#--------------------------"
 		aeffs=[]
 		for ee in xrange(nel):
-			aeff=get_lofar_gain_arisN(freq, ee)
+			aeff=get_lofar_gain_arisN(freq, ee, nelem)
 			aeffs.append(aeff)
 			print "%d\t\t%g" % (ee, aeff)
 
@@ -577,7 +590,7 @@ def lofar_gain_arisN(freq, el, is_quiet=False, freqs=None, is_plot=False):
 	# Calculate single value of Aeff and print it out
 	if freq != 0 and el != -100.:
 		if freqs == None:
-			aeff = get_lofar_gain_arisN(freq, el)
+			aeff = get_lofar_gain_arisN(freq, el, nelem)
 			if not is_quiet:
 				print "#"
 				print "# Freq (MHz)\tEL (deg)\tAeff (m^2)"
@@ -589,7 +602,7 @@ def lofar_gain_arisN(freq, el, is_quiet=False, freqs=None, is_plot=False):
 					aeffs=np.zeros((nfreqs, nel), dtype=float)
 					for ff in xrange(nfreqs):
 						for ee in xrange(nel):
-							aeffs[ff][ee] = get_lofar_gain_arisN(flow+fstep*ff, ee)
+							aeffs[ff][ee] = get_lofar_gain_arisN(flow+fstep*ff, ee, nelem)
 
 	        	        	fig = plt.figure()
 	        	        	ax = fig.add_subplot(111)
@@ -607,7 +620,7 @@ def lofar_gain_arisN(freq, el, is_quiet=False, freqs=None, is_plot=False):
 		else:
 			aeffs=[]
 			for freq in freqs:
-				aeff = get_lofar_gain_arisN(freq, el)
+				aeff = get_lofar_gain_arisN(freq, el, nelem)
 				aeffs.append(aeff)
 			return aeffs
 
@@ -617,7 +630,14 @@ def lofar_gain_arisN(freq, el, is_quiet=False, freqs=None, is_plot=False):
 # in the array and returned value is the list of average Aeffs.
 # The size of the returned array is smaller by 1 than the size of the input 'freqs' array
 # f1 and f2 are in MHz, el in degrees
-def lofar_gain_range_arisN(f1, f2, el, freqs=None):
+def lofar_gain_range_arisN(f1, f2, el, station="CS002", freqs=None):
+
+        # checking the name of the station. If it is - core or remote, then number of tiles/dipoles = 48,
+        # otherwise - it is international, and number of elements is 96
+        if station[0:2] == "CS" or station[0:2] == "RS":
+                nelem = 48
+        else:
+                nelem = 96
 
 	nparts=100
 	# checking if given EL value is within the range
@@ -630,7 +650,7 @@ def lofar_gain_range_arisN(f1, f2, el, freqs=None):
 		tot=0
 		for ii in xrange(nparts+1):
 			freq = f1 + ii*(f2-f1)/nparts
-			aeff = get_lofar_gain_arisN(freq, el)
+			aeff = get_lofar_gain_arisN(freq, el, nelem)
 			tot += aeff
 		tot /= (nparts+1)
 		return tot
@@ -640,7 +660,7 @@ def lofar_gain_range_arisN(f1, f2, el, freqs=None):
 			tot=0
 			for ii in xrange(nparts+1):
 				freq = freqs[ff-1] + ii*(freqs[ff]-freqs[ff-1])/nparts
-				aeff = get_lofar_gain_arisN(freq, el)
+				aeff = get_lofar_gain_arisN(freq, el, nelem)
 				tot += aeff
 			tot /= (nparts+1)
 			aeffs.append(tot)
@@ -681,7 +701,7 @@ when run inside the script", default=False)
 		lofar_gain_arts(opts.freq, opts.el, opts.is_quiet, None, opts.is_plot, opts.gtable)
 	# for the EL-scaling ration used in Noutsos et al. (2015)
 	elif opts.model == 'arisN':
-		lofar_gain_arisN(opts.freq, opts.el, opts.is_quiet, None, opts.is_plot)
+		lofar_gain_arisN(opts.freq, opts.el, "CS002", opts.is_quiet, None, opts.is_plot)
 	else:
 		print "Can't use model '%s' when run in a standalone mode!" % (opts.model)
 		sys.exit(1)
