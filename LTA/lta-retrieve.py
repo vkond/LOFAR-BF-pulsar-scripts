@@ -31,6 +31,9 @@
 #                with the cmdline option -q
 # Mar 20, 2017 - added new options: --skip-summary and --skip-staging
 # Oct 25, 2017 - domain name sara.nl has changed to surfsara.nl
+# May 26, 2018 - improved parsing in the given csv-file. User can also
+#                given ObsID from the last column, not only the PipeID
+#                used in the name of a tarball.
 #
 import numpy as np
 import time
@@ -287,7 +290,7 @@ def retrieve(data, rf=""):
 # main
 if __name__=="__main__":
 
-	cmdline=opt.OptionParser("Usage: %prog <ObsID.txt1> <ObsID.txt2>...")
+	cmdline=opt.OptionParser("Usage: %prog <ObsID1 or ObsID.txt1> [<ObsID2 or ObsID.txt2>...]")
 	cmdline.add_option('--sap', dest='sap', metavar='SAP#', help="retrieve data only for the given SAP", default=-1, type='int')
 	cmdline.add_option('--tab', dest='tab', metavar='TAB#', help="retrieve data only for the given TAB", default=-1, type='int')
 	cmdline.add_option('--part', dest='part', metavar='PART#', help="retrieve data only for the given PART", default=-1, type='int')
@@ -374,9 +377,9 @@ using given csv file. One must specify project as well with --project option. If
 			info=np.row_stack((info.T,np.loadtxt(infile, comments='#', usecols=(0,1,2,3,4), dtype=str, unpack=True).T)).T
 	elif opts.format == "manual":
 		if opts.csvfile != "": # if csv-file is given
-			tmp=np.asarray([[]]*5)
-			tmp=np.loadtxt(opts.csvfile, comments='#', delimiter=",", usecols=(0,2,2,1,3), dtype=str, unpack=True)
-			indices=[ii for ii in xrange(len(tmp[0])) if re.search("|".join(args), tmp[0][ii])]
+			tmp=np.asarray([[]]*6)
+			tmp=np.loadtxt(opts.csvfile, comments='#', delimiter=",", usecols=(0,2,2,1,3,4), dtype=str, unpack=True)
+                        indices=[ii for ii in xrange(len(tmp[0])) if re.search("|".join(args), tmp[0][ii]) or re.search("|".join(args), tmp[5][ii])]
 			info=np.vstack((np.array([ii.strip('"') for ii in tmp[0][indices]]), \
 				np.array([ii.split(" ")[0] for ii in tmp[1][indices]]), \
 				np.array([ii.split(" ")[-1] for ii in tmp[2][indices]]), \
