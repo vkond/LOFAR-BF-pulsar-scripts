@@ -1,0 +1,11 @@
+
+Currently, the information about flagged dipoles/tiles is not stored in HDF5 metadata for BF data.
+To retrieve this information (e.g. for flux calibration) you have to install "lofar_antenna_state" 
+scripts (main script is getState.py + ascii table of flagged elements), provided by SoS.
+Originally written by Wilfred Frieswijk, and further supported and updated by Sander ter Veen.
+
+To update the ascii table "hardware_states_latest.txt" regularly you cab put the corresponding
+wget command in your crontab:
+
+# in the command below substitute DATA with full path, depending from where you run wget command
+wget --no-check-certificate https://proxy.lofar.eu/array_status/STATIONS/DATA/hardware_states_latest.txt -O DATA/hardware_states_latest.txt

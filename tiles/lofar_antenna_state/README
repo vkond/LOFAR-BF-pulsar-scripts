@@ -1,0 +1,14 @@
+#The program uses a database with hardware state changes as well as a time stamp provided or obtained from a beamformed data file.
+
+#First run a check to see if the data base is up to date. If not, you can download a new database. Before the first run, you will also need to download the database.
+#wget --no-check-certificate https://proxy.lofar.eu/array_status/STATIONS/DATA/hardware_states_latest.txt -O DATA/hardware_states_latest.txt
+#If this is not up to date either, please request a new database from sciencesupport using the topic "hardware states update request"
+./check_database.sh DATA/hardware_states_latest.txt *.h5
+
+#If your files are up to date, you can run a command using the h5 file:
+python getState.py -s core -m HBA-DUAL -f L466958_AntOff.txt -i L466958_SAP000_B000_S0_P000_bf.h5
+
+#or just using the time of your observation obtained in a different way:
+python getState.py -s core -m HBA-DUAL -f test.txt -d "2016-05-23 18:52:00"
+
+
