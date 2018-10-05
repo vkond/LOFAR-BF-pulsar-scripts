@@ -18,6 +18,10 @@
 # 22.12.2016 - Vlad Kondratiev
 #              removed getting and applying weights as
 #              they are already applied during FTp scrunching
+# 05.10.2018 - Vlad Kondratiev 
+#              fixed behavior when --auto-off is used and profile
+#              is very noisy (all samples < 2.5 sigma)
+#              fixed std output in case of noisy profiles
 #
 import numpy as np
 import os, os.path, stat, glob, sys, getopt, re
@@ -117,23 +121,28 @@ def auto_find_off_window(data, rot_bins, nbins, adjust):
 	aprof = (data - amean)/arms
        	abins=np.arange(0,nbins)[(aprof>2.5)]
 	abins=trim_bins(abins) # trimming bins
-	# updating pulse window
-	exclsize=abins[-1]-abins[0]
-	# to be extra-cautious, increase it by 15% of the pulse window on both sides
-	le=abins[0]-int(0.15*exclsize)
-	re=abins[-1]+1+int(0.15*exclsize)
-	# doing manual adjustment of the off-pulse window
-	if adjust[0] == 'l': # only adjusting the left edge
-		le+=int(adjust[1:])
-	elif adjust[0] == 'r': # only adjusting the right edge
-		re+=int(adjust[1:])
-	else: # adjusting both sides
-		le-=int(adjust)
-		re+=int(adjust)
-	# extra rotation by "le" bins again, so left edge will be at 0
-	data = bestprof_rotate(data, le)
-	# total rotation in phase
-	rot_bins += float(le)/nbins
+        if np.size(abins) > 0:
+    	        # updating pulse window
+    	        exclsize=abins[-1]-abins[0]
+	        # to be extra-cautious, increase it by 15% of the pulse window on both sides
+	        le=abins[0]-int(0.15*exclsize)
+	        re=abins[-1]+1+int(0.15*exclsize)
+	        # doing manual adjustment of the off-pulse window
+	        if adjust[0] == 'l': # only adjusting the left edge
+		        le+=int(adjust[1:])
+	        elif adjust[0] == 'r': # only adjusting the right edge
+		        re+=int(adjust[1:])
+	        else: # adjusting both sides
+		        le-=int(adjust)
+		        re+=int(adjust)
+	        # extra rotation by "le" bins again, so left edge will be at 0
+	        data = bestprof_rotate(data, le)
+	        # total rotation in phase
+	        rot_bins += float(le)/nbins
+        else: # we use all bins if there are no signal (all data points < 2.5)
+                rot_bins = 0
+                re = 0
+                le = 0
 	return (data, rot_bins, re-le, nbins)
 
 
@@ -298,8 +307,10 @@ information. The argument is the pulsar name or any other label. If argument is 
 	        qq_snrpeak = np.max(qq_prof)
 		qq_binpeak = np.argmax(qq_prof)
         	qq_snrmean = np.mean(qq_prof)
-		qq_weq = np.sum(qq_prof)/qq_snrpeak
-		qq_profsign = np.sum(qq_prof)/np.sqrt(qq_weq)
+                # I use 'abs' below to avoid problems with noisy data (when you run snr.py on just noise profile)
+                # in normal circumstances it doesn not matter as it should be positive
+		qq_weq = abs(np.sum(qq_prof)/qq_snrpeak)
+		qq_profsign = abs(np.sum(qq_prof)/np.sqrt(qq_weq))
 		qq_chi2 = np.sum(qq_prof*qq_prof)/(nbins-1)
 
 	        qq_crit=(qq_prof>opts.thres)
@@ -316,8 +327,10 @@ information. The argument is the pulsar name or any other label. If argument is 
 	        range_snrpeak = np.max(range_prof)
 		range_binpeak = np.argmax(range_prof)
         	range_snrmean = np.mean(range_prof)
-		range_weq = np.sum(range_prof)/range_snrpeak
-		range_profsign = np.sum(range_prof)/np.sqrt(range_weq)
+                # I use 'abs' below to avoid problems with noisy data (when you run snr.py on just noise profile)
+                # in normal circumstances it doesn not matter as it should be positive
+		range_weq = abs(np.sum(range_prof)/range_snrpeak)
+		range_profsign = abs(np.sum(range_prof)/np.sqrt(range_weq))
 		range_chi2 = np.sum(range_prof*range_prof)/(nbins-1)
 
 	        range_crit=(range_prof>opts.thres)
@@ -351,8 +364,10 @@ information. The argument is the pulsar name or any other label. If argument is 
 	        polynom_snrpeak = np.max(polynom_prof)
 		polynom_binpeak = np.argmax(polynom_prof)
         	polynom_snrmean = np.mean(polynom_prof)
-		polynom_weq = np.sum(polynom_prof)/polynom_snrpeak
-		polynom_profsign = np.sum(polynom_prof)/np.sqrt(polynom_weq)
+                # I use 'abs' below to avoid problems with noisy data (when you run snr.py on just noise profile)
+                # in normal circumstances it doesn not matter as it should be positive
+		polynom_weq = abs(np.sum(polynom_prof)/polynom_snrpeak)
+		polynom_profsign = abs(np.sum(polynom_prof)/np.sqrt(polynom_weq))
 		polynom_chi2 = np.sum(polynom_prof*polynom_prof)/(nbins-1)
 
 	        polynom_crit=(polynom_prof>opts.thres)
@@ -374,7 +389,7 @@ information. The argument is the pulsar name or any other label. If argument is 
 				print "Peak phase:\t\t| %-13g | %-13g | %-13g | %-13g" % (float(qq_binpeak)/float(nbins), float(range_binpeak)/float(nbins), \
 										float(polynom_binpeak)/float(nbins), float(psrstat_binpeak)/float(nbins))
 				print "Mean S/N:\t\t| %-13g | %-13g | %-13g | %-13g" % (qq_snrmean, range_snrmean, polynom_snrmean, psrstat_snrmean)
-				print "Eff width (bins):\t| %-13d | %-13d | %-13d | %-13d" % (qq_weq, range_weq, polynom_weq, weff_bin)
+				print "Eff width (bins):\t| %-13.0f | %-13.0f | %-13.0f | %-13.0f" % (qq_weq, range_weq, polynom_weq, weff_bin)
 				print "Weff/P ratio:\t\t| %-13g | %-13g | %-13g | %-13g" % (qq_weq/nbins, range_weq/nbins, polynom_weq/nbins, weff_bin/nbins)
 				print "-----------------------------------------------------------------------------------------"
 				print "S/N:\t\t\t| %-13.2f | %-13.2f | %-13.2f | %-13.2f" % (qq_profsign, range_profsign, polynom_profsign, psrstat_profsign)
@@ -390,7 +405,7 @@ information. The argument is the pulsar name or any other label. If argument is 
 (off, polynom, psrstat)\tW/P (off, polynom, psrstat)"
 				print "#--------------------------------------------------------------------------------------------------------------------------\
 -----------------------------------------------------------------"
-				print "%-10s\t%g\t%g\t%g\t\t%g\t%g\t%g\t\t%.2f\t%.2f\t%.2f\t\t%d\t%d\t%d\t\t%g\t%g\t%g" % (psr, range_snrpeak, polynom_snrpeak, psrstat_snrpeak, \
+				print "%-10s\t%g\t%g\t%g\t\t%g\t%g\t%g\t\t%.2f\t%.2f\t%.2f\t\t%.0f\t%.0f\t%.0f\t\t%g\t%g\t%g" % (psr, range_snrpeak, polynom_snrpeak, psrstat_snrpeak, \
 					range_snrmean, polynom_snrmean, psrstat_snrmean, range_profsign, polynom_profsign, psrstat_profsign, range_weq, polynom_weq, weff_bin, \
 					range_weq/nbins, polynom_weq/nbins, weff_bin/nbins)
 
@@ -407,7 +422,7 @@ information. The argument is the pulsar name or any other label. If argument is 
 				print "Peak phase:\t\t| %-13g | %-13g | %-13g" % (float(qq_binpeak)/float(nbins), float(range_binpeak)/float(nbins), \
 										float(polynom_binpeak)/float(nbins))
 				print "Mean S/N:\t\t| %-13g | %-13g | %-13g" % (qq_snrmean, range_snrmean, polynom_snrmean)
-				print "Eff width (bins):\t| %-13d | %-13d | %-13d" % (qq_weq, range_weq, polynom_weq)
+				print "Eff width (bins):\t| %-13.0f | %-13.0f | %-13.0f" % (qq_weq, range_weq, polynom_weq)
 				print "Weff/P ratio:\t\t| %-13g | %-13g | %-13g" % (qq_weq/nbins, range_weq/nbins, polynom_weq/nbins)
 				print "-----------------------------------------------------------------------"
 				print "S/N:\t\t\t| %-13.2f | %-13.2f | %-13.2f" % (qq_profsign, range_profsign, polynom_profsign)
@@ -421,7 +436,7 @@ information. The argument is the pulsar name or any other label. If argument is 
 				else: psr = opts.oneliner
 				print "# PSR\t\tS/Npeak (off, polynom)\tS/Nmean (off, polynom)\tS/N (off, polynom)\tEff widths in bins (off, polynom)\tW/P (off, polynom)"
 				print "#--------------------------------------------------------------------------------------------------------------------------------------------------"
-				print "%-10s\t%g\t%g\t\t%g\t%g\t\t%.2f\t%.2f\t\t%d\t%d\t\t\t%g\t%g" % (psr, range_snrpeak, polynom_snrpeak, \
+				print "%-10s\t%g\t%g\t\t%g\t%g\t\t%.2f\t%.2f\t\t%.0f\t%.0f\t\t\t%g\t%g" % (psr, range_snrpeak, polynom_snrpeak, \
 					range_snrmean, polynom_snrmean, range_profsign, polynom_profsign, range_weq, polynom_weq, range_weq/nbins, polynom_weq/nbins)
 
 		# Plotting
